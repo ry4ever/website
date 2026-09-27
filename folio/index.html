@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Folio – notes, docs and projects in one place</title>
+    <meta name="description" content="Folio is a block-based workspace for notes, docs, tasks and databases that runs entirely in your browser." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='3' width='20' height='26' rx='4' fill='%232d2c28'/%3E%3Crect x='9' y='6' width='19' height='23' rx='4' fill='%23f3a683' stroke='%232d2c28' stroke-width='2'/%3E%3Cpath d='M14 13h9M14 18h9M14 23h6' stroke='%232d2c28' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="css/landing.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="index.html" aria-label="Folio home">
+        <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="4" y="3" width="20" height="26" rx="4" fill="currentColor" />
+          <rect x="9" y="6" width="19" height="23" rx="4" fill="#f3a683" stroke="currentColor" stroke-width="2" />
+          <path d="M14 13h9M14 18h9M14 23h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        <span>Folio</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Product</a>
+        <a href="#blocks">Blocks</a>
+        <a href="#databases">Databases</a>
+        <a href="#templates">Templates</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="btn btn-ghost" href="app.html#/home">Log in</a>
+        <a class="btn btn-dark" href="app.html">Get Folio free</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-badge"><span class="dot"></span> Runs in your browser — no account needed</div>
+        <h1>Write, plan and organize.<br /><span class="hl">All in one calm place.</span></h1>
+        <p class="lead">
+          Folio is a block-based workspace for notes, docs, tasks and small databases. Everything you make is saved on
+          your device, so it opens instantly and stays yours.
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary btn-lg" href="app.html">Get Folio free</a>
+          <a class="btn btn-outline btn-lg" href="#features">See how it works →</a>
+        </div>
+
+        <div class="mock" aria-hidden="true">
+          <div class="mock-window">
+            <div class="mock-bar"><span></span><span></span><span></span></div>
+            <div class="mock-body">
+              <aside class="mock-side">
+                <div class="ms-ws"><b>M</b> My Workspace</div>
+                <div class="ms-item">🔍 Search</div>
+                <div class="ms-item">🏠 Home</div>
+                <div class="ms-label">Private</div>
+                <div class="ms-item active">👋 Getting Started</div>
+                <div class="ms-item">📝 Quick Note</div>
+                <div class="ms-item">✅ Task Board</div>
+                <div class="ms-item">📚 Reading List</div>
+                <div class="ms-item">📔 Journal</div>
+              </aside>
+              <div class="mock-page">
+                <div class="mp-cover"></div>
+                <div class="mp-content">
+                  <div class="mp-icon">🚀</div>
+                  <div class="mp-title">Launch plan</div>
+                  <div class="mp-callout">💡 Everything below is made of blocks. Drag them, nest them, turn them into anything.</div>
+                  <div class="mp-h">This week</div>
+                  <div class="mp-todo done"><i></i>Draft the announcement</div>
+                  <div class="mp-todo"><i></i>Review the checklist with the team</div>
+                  <div class="mp-todo"><i></i>Schedule the release</div>
+                  <div class="mp-board">
+                    <div class="mb-col"><span class="pill gray">Not started</span><div class="mb-card">Write FAQ</div><div class="mb-card">Record demo</div></div>
+                    <div class="mb-col"><span class="pill blue">In progress</span><div class="mb-card">Landing page</div></div>
+                    <div class="mb-col"><span class="pill green">Done</span><div class="mb-card">Pick a name</div><div class="mb-card">Design icon</div></div>
+                  </div>
+                </div>
+                <div class="mp-slash">
+                  <div class="sl-head">Basic blocks</div>
+                  <div class="sl-item on"><span>Aa</span><div><b>Text</b><small>Plain paragraph text</small></div></div>
+                  <div class="sl-item"><span>☑</span><div><b>To-do list</b><small>Checkboxes for tasks</small></div></div>
+                  <div class="sl-item"><span>H1</span><div><b>Heading 1</b><small>Large section heading</small></div></div>
+                  <div class="sl-item"><span>▦</span><div><b>Board view</b><small>Cards grouped into columns</small></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="features" id="features">
+        <div class="section-head">
+          <p class="eyebrow">One tool, many shapes</p>
+          <h2>Start with a blank page. Turn it into whatever you need.</h2>
+        </div>
+        <div class="grid">
+          <article class="card">
+            <div class="card-icon">✍️</div>
+            <h3>Docs that flow</h3>
+            <p>Type <kbd>/</kbd> to add headings, to-dos, toggles, quotes, callouts, code and images. Markdown shortcuts work as you type.</p>
+          </article>
+          <article class="card">
+            <div class="card-icon">🗂️</div>
+            <h3>Pages inside pages</h3>
+            <p>Nest pages as deep as you like, drag them around the sidebar, and jump anywhere with breadcrumbs.</p>
+          </article>
+          <article class="card">
+            <div class="card-icon">📋</div>
+            <h3>Boards and tables</h3>
+            <p>Track work in databases with status, dates, tags and checkboxes. Filter, sort and switch views in a click.</p>
+          </article>
+          <article class="card">
+            <div class="card-icon">⚡</div>
+            <h3>Find anything fast</h3>
+            <p>Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>K</kbd> to search every title and paragraph, then hit Enter to open it.</p>
+          </article>
+          <article class="card">
+            <div class="card-icon">🔒</div>
+            <h3>Private by default</h3>
+            <p>Your workspace lives in your browser’s storage. Export it as JSON or Markdown whenever you like.</p>
+          </article>
+          <article class="card">
+            <div class="card-icon">🎨</div>
+            <h3>Make it yours</h3>
+            <p>Icons, covers, colors, three font styles, full-width pages and a dark mode that follows your system.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="split" id="blocks">
+        <div class="split-text">
+          <p class="eyebrow">Blocks</p>
+          <h2>Everything is a block.</h2>
+          <p>
+            Every paragraph, list and image is a block you can drag, nest, recolor, duplicate or turn into another type.
+            Select a few and move them together, or send them to another page.
+          </p>
+          <ul class="checks">
+            <li>Drag handles and multi-block selection</li>
+            <li>Undo and redo for every change</li>
+            <li>Inline mentions of pages and dates with <kbd>@</kbd></li>
+            <li>Syntax highlighting for 20 languages</li>
+          </ul>
+        </div>
+        <div class="chips" aria-label="Block types">
+          <span>Aa Text</span><span>H1 Heading</span><span>☑ To-do</span><span>• Bullets</span><span>1. Numbers</span>
+          <span>▸ Toggle</span><span>❝ Quote</span><span>💡 Callout</span><span>— Divider</span><span>&lt;/&gt; Code</span>
+          <span>🖼 Image</span><span>📄 Sub-page</span><span>↗ Page link</span><span>☰ Contents</span><span>▦ Database</span>
+        </div>
+      </section>
+
+      <section class="split reverse" id="databases">
+        <div class="split-text">
+          <p class="eyebrow">Databases</p>
+          <h2>One set of data. Five ways to see it.</h2>
+          <p>
+            Every row is a page with properties. Look at the same tasks as a table, a board, a gallery, a list or a
+            calendar — and open any row in a side peek without losing your place.
+          </p>
+        </div>
+        <div class="views">
+          <div class="view"><b>Table</b><span>Rows and columns you can resize, sort and filter.</span></div>
+          <div class="view"><b>Board</b><span>Drag cards between columns to change status.</span></div>
+          <div class="view"><b>Gallery</b><span>Visual cards with covers or content previews.</span></div>
+          <div class="view"><b>List</b><span>A tidy list for reading and notes.</span></div>
+          <div class="view"><b>Calendar</b><span>Drop pages on days to reschedule.</span></div>
+        </div>
+      </section>
+
+      <section class="templates" id="templates">
+        <div class="section-head">
+          <p class="eyebrow">Templates</p>
+          <h2>Don’t start from scratch.</h2>
+        </div>
+        <div class="tpl-row">
+          <a class="tpl" href="app.html"><span>🗓️</span><b>Meeting notes</b><small>Agenda, notes and action items.</small></a>
+          <a class="tpl" href="app.html"><span>🚀</span><b>Project roadmap</b><small>Projects on a board by stage.</small></a>
+          <a class="tpl" href="app.html"><span>🌱</span><b>Habit tracker</b><small>Daily check-ins in a table.</small></a>
+          <a class="tpl" href="app.html"><span>🧳</span><b>Trip planner</b><small>Itinerary and packing list.</small></a>
+        </div>
+      </section>
+
+      <section class="faq" id="faq">
+        <div class="section-head">
+          <h2>Questions and answers</h2>
+        </div>
+        <details>
+          <summary>Where is my data stored?</summary>
+          <p>In your browser’s local storage on this device. Nothing is sent to a server. Clearing site data removes it, so export a backup from Settings → Data & storage.</p>
+        </details>
+        <details>
+          <summary>Do I need an account?</summary>
+          <p>No. Open the app and start writing. Your name and workspace name are just local preferences.</p>
+        </details>
+        <details>
+          <summary>Can I move my notes in or out?</summary>
+          <p>Yes. Import Markdown files, paste Markdown straight into a page, and export any page as Markdown or HTML. The whole workspace exports as JSON.</p>
+        </details>
+        <details>
+          <summary>Does it work on my phone?</summary>
+          <p>The layout adapts to small screens: the sidebar slides in from the menu button and pages reflow to fit.</p>
+        </details>
+      </section>
+
+      <section class="final">
+        <h2>Your next idea deserves a good home.</h2>
+        <a class="btn btn-primary btn-lg" href="app.html">Get Folio free</a>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="brand small">
+        <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="4" y="3" width="20" height="26" rx="4" fill="currentColor" />
+          <rect x="9" y="6" width="19" height="23" rx="4" fill="#f3a683" stroke="currentColor" stroke-width="2" />
+          <path d="M14 13h9M14 18h9M14 23h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        <span>Folio</span>
+      </div>
+      <p>Built with plain HTML, CSS and JavaScript. No trackers, no servers.</p>
+    </footer>
+  </body>
+</html>

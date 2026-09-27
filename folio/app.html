@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Folio</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='3' width='20' height='26' rx='4' fill='%232d2c28'/%3E%3Crect x='9' y='6' width='19' height='23' rx='4' fill='%23f3a683' stroke='%232d2c28' stroke-width='2'/%3E%3Cpath d='M14 13h9M14 18h9M14 23h6' stroke='%232d2c28' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="css/app.css" />
+    <script>
+      // Apply the saved theme before first paint to avoid a flash.
+      try {
+        var s = JSON.parse(localStorage.getItem('folio.workspace.v1') || '{}').settings || {}
+        var dark = s.theme === 'dark' || ((!s.theme || s.theme === 'system') && matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="app" class="app">
+      <aside id="sidebar" class="sidebar" aria-label="Sidebar"></aside>
+      <div id="resizer" class="sidebar-resizer" title="Drag to resize · Double-click to reset"></div>
+      <main class="main">
+        <header id="topbar" class="topbar"></header>
+        <div id="scroller" class="scroller"><div id="view"></div></div>
+        <aside id="peek" class="peek" aria-label="Page preview"></aside>
+      </main>
+    </div>
+    <div id="overlay-root"></div>
+
+    <script src="js/util.js"></script>
+    <script src="js/emoji.js"></script>
+    <script src="js/store.js"></script>
+    <script src="js/md.js"></script>
+    <script src="js/seed.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/highlight.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/editor.js"></script>
+    <script src="js/templates.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>

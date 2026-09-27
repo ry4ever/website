@@ -1,0 +1,19 @@
+{
+  "name": "Folio",
+  "short_name": "Folio",
+  "description": "Tasks, calendar, focus timer, habits, projects and notes in one calm workspace.",
+  "start_url": "app.html#/home",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f7fd",
+  "theme_color": "#101217",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "My Tasks", "url": "app.html#/tasks" },
+    { "name": "Calendar", "url": "app.html#/calendar" },
+    { "name": "Focus", "url": "app.html#/focus" }
+  ]
+}

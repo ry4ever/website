@@ -142,6 +142,78 @@ window.Folio = window.Folio || {}
     )
   }
 
+  // ---------- Day and time helpers (dates are local YYYY-MM-DD strings) ----------
+  U.DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  U.todayISO = () => U.toISODate(new Date())
+  U.addDays = function(iso, n) {
+    const d = U.parseISODate(iso) || new Date()
+    d.setDate(d.getDate() + n)
+    return U.toISODate(d)
+  }
+  // Whole days from b to a (a - b).
+  U.diffDays = function(a, b) {
+    return Math.round((U.parseISODate(a) - U.parseISODate(b)) / 86400000)
+  }
+  U.weekStart = function(iso, mondayFirst) {
+    const d = U.parseISODate(iso) || new Date()
+    const back = mondayFirst ? (d.getDay() + 6) % 7 : d.getDay()
+    d.setDate(d.getDate() - back)
+    return U.toISODate(d)
+  }
+  U.relDay = function(iso) {
+    if (!iso) return ''
+    const n = U.diffDays(iso, U.todayISO())
+    if (n === 0) return 'Today'
+    if (n === 1) return 'Tomorrow'
+    if (n === -1) return 'Yesterday'
+    const d = U.parseISODate(iso)
+    if (n > 1 && n < 7) return U.DAYS[d.getDay()]
+    const sameYear = d.getFullYear() === new Date().getFullYear()
+    return U.MONTHS[d.getMonth()].slice(0, 3) + ' ' + d.getDate() + (sameYear ? '' : ', ' + d.getFullYear())
+  }
+  U.toMin = function(hm) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(hm || '')
+    return m ? +m[1] * 60 + +m[2] : null
+  }
+  U.fromMin = function(min) {
+    min = Math.max(0, Math.min(24 * 60 - 1, Math.round(min)))
+    return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0')
+  }
+  U.clock24 = false
+  U.fmtTime = function(hm) {
+    const min = U.toMin(hm)
+    if (min == null) return ''
+    const hh = Math.floor(min / 60)
+    const mm = min % 60
+    if (U.clock24) return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0')
+    const h12 = hh % 12 || 12
+    return h12 + (mm ? ':' + String(mm).padStart(2, '0') : '') + (hh < 12 ? 'am' : 'pm')
+  }
+  U.fmtDuration = function(min) {
+    min = Math.round(min || 0)
+    if (min < 60) return min + 'm'
+    const hrs = Math.floor(min / 60)
+    return hrs + 'h' + (min % 60 ? ' ' + (min % 60) + 'm' : '')
+  }
+  U.nowMin = function() {
+    const d = new Date()
+    return d.getHours() * 60 + d.getMinutes()
+  }
+  U.greeting = function() {
+    const hr = new Date().getHours()
+    return hr < 5 ? 'Good evening' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'
+  }
+  // Seeded pseudo-random numbers so sample data is stable between reloads.
+  U.rng = function(seed) {
+    let t = seed >>> 0
+    return function() {
+      t += 0x6d2b79f5
+      let r = Math.imul(t ^ (t >>> 15), 1 | t)
+      r ^= r + Math.imul(r ^ (r >>> 7), 61 | r)
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296
+    }
+  }
+
   U.download = function(filename, text, type) {
     // Embedded frames often block downloads, so offer the text to copy instead.
     if (window.self !== window.top && F.ui) return U.showExport(filename, text, type)
@@ -589,6 +661,39 @@ window.Folio = window.Folio || {}
     database: '<ellipse cx="10" cy="5" rx="6" ry="2.2"/><path d="M4 5v10c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2V5M4 10c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2"/>',
     pin: '<path d="M7 3.5h6M8 3.5v5L5.5 11h9L12 8.5v-5M10 11v5.5"/>',
     logout: '<path d="M8 4H4v12h4M12 6.5L15.5 10 12 13.5M15.5 10H7.5"/>',
+    dashboard: '<rect x="3" y="3" width="6" height="7" rx="1.6"/><rect x="11" y="3" width="6" height="4" rx="1.6"/><rect x="11" y="9" width="6" height="8" rx="1.6"/><rect x="3" y="12" width="6" height="5" rx="1.6"/>',
+    tasks: '<path d="M3.5 5.5l1.5 1.5 2.5-3M3.5 12.5l1.5 1.5 2.5-3"/><path d="M10.5 5.5h6M10.5 12.5h6"/>',
+    timeline: '<path d="M3 3.5v13"/><rect x="5.5" y="4" width="7" height="3" rx="1.2"/><rect x="8.5" y="8.5" width="8" height="3" rx="1.2"/><rect x="6.5" y="13" width="5" height="3" rx="1.2"/>',
+    focus: '<circle cx="10" cy="11" r="6.2"/><path d="M10 7.8V11l2.2 1.4M8 2.8h4M15.5 5.2l1.2-1.2"/>',
+    flame: '<path d="M10 17.2c-3 0-5-2-5-4.8 0-2.3 1.4-3.6 2.4-5 .4 1.3 1.1 2 1.9 2.3C9 7.2 9.6 4.8 11.5 3.2c.2 2.3 1.2 3.4 2.3 4.7.8 1 1.2 2.2 1.2 3.5 0 3-2 5.8-5 5.8z"/>',
+    habit: '<path d="M16 10a6 6 0 11-2.1-4.6"/><path d="M16.5 3.5v3.3h-3.3"/><path d="M7.5 10l1.8 1.8L13 8.3"/>',
+    flag: '<path d="M5 17.5V3.5"/><path d="M5 4h9.5l-2 3.3 2 3.2H5"/>',
+    flagFill: '<path d="M5 17.5V3.5"/><path d="M5 4h9.5l-2 3.3 2 3.2H5z" fill="currentColor"/>',
+    folder: '<path d="M3 6.2A1.7 1.7 0 014.7 4.5h3.2l1.6 1.8h5.8A1.7 1.7 0 0117 8v6.8a1.7 1.7 0 01-1.7 1.7H4.7A1.7 1.7 0 013 14.8z"/>',
+    play: '<path d="M6.5 4.3v11.4l9.2-5.7z" fill="currentColor"/>',
+    pause: '<rect x="5.5" y="4.5" width="3" height="11" rx="1" fill="currentColor" stroke="none"/><rect x="11.5" y="4.5" width="3" height="11" rx="1" fill="currentColor" stroke="none"/>',
+    skip: '<path d="M5 4.5v11l8-5.5z"/><path d="M15.5 4.5v11"/>',
+    stop: '<rect x="5" y="5" width="10" height="10" rx="2"/>',
+    tag: '<path d="M3.5 10.2V4.5a1 1 0 011-1h5.7l6.3 6.3a1 1 0 010 1.4l-5.3 5.3a1 1 0 01-1.4 0z"/><circle cx="7" cy="7" r="1.1"/>',
+    sparkles: '<path d="M8 3l1.3 3.6L13 8l-3.7 1.3L8 13l-1.3-3.7L3 8l3.7-1.4z"/><path d="M14.5 11.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+    bolt: '<path d="M11 2.5L4.5 11h5l-1 6.5L15.5 9h-5z"/>',
+    trophy: '<path d="M6.5 3.5h7v4a3.5 3.5 0 01-7 0z"/><path d="M6.5 5H3.5v1a3 3 0 003 3M13.5 5h3v1a3 3 0 01-3 3M10 11v3M7 16.5h6M8 14h4"/>',
+    chart: '<path d="M3.5 16.5h13"/><rect x="5" y="9" width="2.4" height="5.5" rx=".8"/><rect x="9" y="5" width="2.4" height="9.5" rx=".8"/><rect x="13" y="7.5" width="2.4" height="7" rx=".8"/>',
+    trend: '<path d="M3 14l4.5-4.5 3 3L17 6"/><path d="M12.5 6H17v4.5"/>',
+    note: '<path d="M4 3.5h12v8.5L11.5 16.5H4z"/><path d="M11.5 16.5V12H16"/>',
+    panel: '<rect x="3" y="3.5" width="14" height="13" rx="2.5"/><path d="M8 3.5v13"/>',
+    circle: '<circle cx="10" cy="10" r="6.5"/>',
+    checkCircle: '<circle cx="10" cy="10" r="7"/><path d="M6.8 10.2l2.2 2.2 4.3-4.6"/>',
+    repeat: '<path d="M4 9V7.5A2.5 2.5 0 016.5 5H15l-2-2M16 11v1.5a2.5 2.5 0 01-2.5 2.5H5l2 2"/>',
+    layers: '<path d="M10 3l7 3.8-7 3.8-7-3.8z"/><path d="M3 10.3l7 3.8 7-3.8M3 13.7l7 3.8 7-3.8"/>',
+    arrowUpRight: '<path d="M6 14L14 6M7.5 6H14v6.5"/>',
+    monitor: '<rect x="3" y="4" width="14" height="9.5" rx="1.5"/><path d="M7.5 16.5h5M10 13.5v3"/>',
+    target: '<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/><circle cx="10" cy="10" r="1" fill="currentColor"/>',
+    coffee: '<path d="M4 7.5h10v4a4 4 0 01-4 4H8a4 4 0 01-4-4z"/><path d="M14 8.5h1.2a2 2 0 010 4H14M7 3v2M10 3v2"/>',
+    mapPin: '<path d="M10 17s5.5-5 5.5-9A5.5 5.5 0 004.5 8c0 4 5.5 9 5.5 9z"/><circle cx="10" cy="8" r="2"/>',
+    sunrise: '<path d="M3 15.5h14M5.5 12.5a4.5 4.5 0 019 0M10 3.5v3M4.3 7l1.4 1.4M15.7 7l-1.4 1.4"/>',
+    list2: '<path d="M4 5.5h12M4 10h12M4 14.5h7"/>',
+    grid: '<rect x="3.5" y="3.5" width="5.5" height="5.5" rx="1.4"/><rect x="11" y="3.5" width="5.5" height="5.5" rx="1.4"/><rect x="3.5" y="11" width="5.5" height="5.5" rx="1.4"/><rect x="11" y="11" width="5.5" height="5.5" rx="1.4"/>',
   }
   U.icons = P
 

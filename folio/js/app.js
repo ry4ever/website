@@ -1,4 +1,4 @@
-/* Folio — application shell: sidebar, topbar, routing, search, settings, trash, peek and home. */
+/* Folio — application shell: sidebar, topbar, routing, command palette, settings, reminders. */
 window.Folio = window.Folio || {}
 ;(function(F) {
   'use strict'
@@ -6,6 +6,8 @@ window.Folio = window.Folio || {}
   const h = U.h
   const S = F.store
   const UI = F.ui
+  const P = F.planner
+  const K = F.kit
 
   const app = (F.app = {})
   let editor = null
@@ -13,20 +15,30 @@ window.Folio = window.Folio || {}
   let currentId = null
   let peekId = null
   let sidebarQueued = false
+  let view = null
+  let viewName = null
+  let viewParam = null
 
   const $ = id => document.getElementById(id)
+  const LOGO =
+    '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.6" y="3.2" width="10" height="13.6" rx="2.8" fill="currentColor" opacity=".42"/>' +
+    '<rect x="7.2" y="2.4" width="10.2" height="15.2" rx="2.8" fill="currentColor"/><path d="M10.2 7.4h4.2M10.2 10.2h4.2M10.2 13h2.4" stroke="var(--ink)" stroke-width="1.6" stroke-linecap="round"/></svg>'
+  app.LOGO = LOGO
 
   // ------------------------------------------------------------------ init
   app.init = function() {
     S.load()
     applyTheme()
+    applyAppearance()
     const st = S.state()
-    document.documentElement.style.setProperty('--sidebar-w', st.settings.sidebarWidth + 'px')
+    const w = st.settings.sidebarWidth === 248 ? 272 : st.settings.sidebarWidth
+    document.documentElement.style.setProperty('--sidebar-w', w + 'px')
     $('app').classList.toggle('sidebar-collapsed', !!st.settings.sidebarCollapsed)
     bindResizer()
     bindGlobalKeys()
     renderSidebar()
     S.on(onStore)
+    F.focus.onTick(updateLive)
     window.addEventListener('hashchange', route)
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme)
     $('app').addEventListener('mousedown', e => {
@@ -38,6 +50,7 @@ window.Folio = window.Folio || {}
     $('scroller').addEventListener('mousedown', e => {
       if (peekId && !e.target.closest('.db, .popover')) app.closePeek()
     })
+    startReminders()
     route()
   }
 
@@ -48,23 +61,27 @@ window.Folio = window.Folio || {}
       return
     }
     if (type === 'reset') {
-      if (editor) editor.destroy()
-      editor = null
+      teardown()
       app.closePeek()
       applyTheme()
+      applyAppearance()
       scheduleSidebar()
-      location.hash = '#/'
-      route()
+      if (location.hash === '#/home') renderView('home', null, true)
+      else location.hash = '#/home'
       return
     }
     if (type === 'settings') {
       applyTheme()
+      applyAppearance()
+      scheduleSidebar()
+      renderTopbar()
       return
     }
     if (type !== 'row') scheduleSidebar()
-    renderTopbar()
+    if (!UI.anyOpen() || type === 'title') renderTopbar()
     const p = S.page(currentId)
     if (p) document.title = (p.icon ? p.icon + ' ' : '') + S.pageTitle(p) + ' · Folio'
+    else if (viewName) document.title = viewTitle() + ' · Folio'
     if (type === 'pages' && currentId) {
       const cur = S.page(currentId)
       if (cur && S.isTrashed(currentId) !== app.shownTrashed) renderPage(currentId)
@@ -83,31 +100,66 @@ window.Folio = window.Folio || {}
     root.setAttribute('data-theme', appliedTheme)
   }
 
+  function applyAppearance() {
+    const st = S.state().settings
+    const root = document.documentElement
+    root.classList.remove('wall-sky', 'wall-meadow', 'wall-dusk', 'wall-mist', 'has-wall')
+    const wall = st.wallpaper || 'none'
+    if (wall !== 'none') root.classList.add('wall-' + wall, 'has-wall')
+    if (st.accent && st.accent !== 'indigo') root.setAttribute('data-accent', st.accent)
+    else root.removeAttribute('data-accent')
+    U.clock24 = !!st.clock24
+  }
+
   // ------------------------------------------------------------------ routing
+  function viewDef(name) {
+    if (name === 'docs') return docsView
+    return F.views[name] && F.views[name].mount ? F.views[name] : null
+  }
+
   function parseHash() {
-    const m = /^#\/p\/([\w-]+)(?:\/([\w-]+))?/.exec(location.hash)
-    return m ? { page: m[1], block: m[2] || null } : null
+    const hs = location.hash.replace(/^#\/?/, '')
+    let m = /^p\/([\w-]+)(?:\/([\w-]+))?/.exec(hs)
+    if (m) return { page: m[1], block: m[2] || null }
+    m = /^([a-z]+)(?:\/([\w-]+))?$/.exec(hs)
+    if (m && viewDef(m[1])) return { view: m[1], param: m[2] || null }
+    return null
   }
 
   function route() {
     const r = parseHash()
     if (!r) {
       const st = S.state()
-      if (!location.hash || location.hash === '#' || location.hash === '#/') {
-        if (!app.started && st.settings.startPage === 'last' && st.settings.lastPage && S.page(st.settings.lastPage) && !S.isTrashed(st.settings.lastPage)) {
-          app.started = true
-          location.replace('#/p/' + st.settings.lastPage)
-          return
-        }
+      if (!app.started && st.settings.startPage === 'last' && st.settings.lastRoute && st.settings.lastRoute !== location.hash) {
+        app.started = true
+        location.replace(st.settings.lastRoute)
+        return
       }
       app.started = true
-      renderHome()
+      location.replace('#/home')
       return
     }
     app.started = true
-    if (r.page !== currentId || !editor) renderPage(r.page)
-    if (r.block && editor) setTimeout(() => editor.scrollToBlock(r.block), 60)
+    if (r.page) {
+      if (r.page !== currentId || !editor) renderPage(r.page)
+      if (r.block && editor) setTimeout(() => editor.scrollToBlock(r.block), 60)
+    } else {
+      renderView(r.view, r.param)
+    }
     if (innerWidth < 760) setSidebarOpen(false)
+  }
+
+  app.go = function(path) {
+    app.closePeek()
+    UI.closeAll()
+    const hash = '#/' + path
+    if (location.hash === hash) app.refresh()
+    else location.hash = hash
+  }
+
+  app.refresh = function() {
+    if (view && view.refresh) view.refresh()
+    else if (viewName) renderView(viewName, viewParam, true)
   }
 
   app.open = function(id) {
@@ -119,13 +171,52 @@ window.Folio = window.Folio || {}
   }
 
   app.home = function() {
-    app.closePeek()
-    location.hash = '#/home'
+    app.go('home')
+  }
+
+  app.current = () => ({ view: viewName, param: viewParam, page: currentId })
+
+  function teardown() {
+    if (editor) editor.destroy()
+    editor = null
+    if (view && view.destroy) view.destroy()
+    view = null
+    viewName = null
+    viewParam = null
+    currentId = null
+  }
+
+  function viewTitle() {
+    if (viewName === 'project') {
+      const p = P.project(viewParam)
+      return p ? p.name : 'Project'
+    }
+    const d = viewDef(viewName)
+    return d ? d.title : 'Folio'
+  }
+
+  function renderView(name, param, force) {
+    if (!force && view && viewName === name && viewParam === param) return
+    if (viewName !== name || viewParam !== param) F.taskDrawer.close()
+    teardown()
+    viewName = name
+    viewParam = param
+    const host = $('view')
+    host.innerHTML = ''
+    host.className = 'view-tool view-' + name
+    view = viewDef(name).mount(host, param) || {}
+    $('scroller').scrollTop = 0
+    const st = S.state()
+    st.settings.lastRoute = '#/' + name + (param && param !== 'new' ? '/' + param : '')
+    S.save()
+    document.title = viewTitle() + ' · Folio'
+    renderTopbar()
+    scheduleSidebar()
   }
 
   function renderPage(id) {
-    if (editor) editor.destroy()
-    editor = null
+    teardown()
+    F.taskDrawer.close()
     currentId = id
     const view = $('view')
     view.innerHTML = ''
@@ -138,10 +229,9 @@ window.Folio = window.Folio || {}
     editor = new F.editor.Editor(host, id)
     if (p) {
       S.visit(id)
+      S.state().settings.lastRoute = '#/p/' + id
       document.title = (p.icon ? p.icon + ' ' : '') + S.pageTitle(p) + ' · Folio'
-      if (!p.parentId || p.isRow) {
-        /* nothing to expand */
-      } else {
+      if (p.parentId && !p.isRow) {
         S.ancestors(id).forEach(a => {
           S.state().settings.expanded[a.id] = true
         })
@@ -174,27 +264,60 @@ window.Folio = window.Folio || {}
     )
   }
 
-  // ------------------------------------------------------------------ home
-  function greeting() {
-    const hr = new Date().getHours()
-    return hr < 5 ? 'Good evening' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'
+  // Today's journal page, created under "Journal" on first use.
+  app.dailyNote = function() {
+    let journal = S.rootPages().map(S.page).find(p => p.title === 'Journal' && p.type !== 'database')
+    if (!journal) journal = S.createPage({ title: 'Journal', icon: '📔' })
+    const title = U.formatDate(Date.now())
+    let page = S.childPages(journal.id).map(S.page).find(p => p.title === title)
+    if (!page) {
+      const b = (type, text) => S.newBlock(type, { text: text || '' })
+      page = S.createPage({
+        title,
+        icon: '☀️',
+        parentId: journal.id,
+        blocks: [b('h3', 'Top three for today'), b('todo'), b('todo'), b('todo'), b('h3', 'Notes'), b('text'), b('h3', 'Wins'), b('bullet')],
+      })
+    }
+    app.open(page.id)
   }
 
-  function renderHome() {
-    if (editor) editor.destroy()
-    editor = null
-    currentId = null
-    document.title = 'Home · Folio'
-    const st = S.state()
-    const view = $('view')
-    view.innerHTML = ''
-    view.className = 'view-home'
-    const name = st.settings.userName && st.settings.userName !== 'You' ? ', ' + st.settings.userName : ''
-    const home = h('div.home')
-    home.appendChild(h('h1.home-greeting', { text: greeting() + name }))
+  // ------------------------------------------------------------------ docs
+  const docsView = {
+    title: 'Docs',
+    icon: 'page',
+    mount(host) {
+      renderDocs(host)
+      const unsub = K.watch(['pages', 'page'], () => renderDocs(host))
+      return { destroy: unsub }
+    },
+  }
 
-    const recent = st.recent.filter(id => S.page(id) && !S.isTrashed(id)).slice(0, 12)
-    home.appendChild(h('div.home-section-title', null, U.icon('clock', 14), 'Recently visited'))
+  function renderDocs(host) {
+    const st = S.state()
+    host.innerHTML = ''
+    const home = h('div.vt.vt-docs')
+    const count = Object.keys(st.pages).filter(id => !S.isTrashed(id) && !st.pages[id].isRow).length
+    home.appendChild(K.head({
+      title: 'Docs',
+      sub: count + ' pages of notes, wikis and databases.',
+      actions: [
+        h('button.btn', { onClick: () => app.importMarkdown() }, U.icon('import', 15), 'Import'),
+        h('button.btn', { onClick: () => app.openTemplates() }, U.icon('template', 15), 'Templates'),
+        h('button.btn-ink', { onClick: newRootPage }, U.icon('plus', 15), 'New doc'),
+      ],
+    }))
+
+    // Recently visited first, topped up with recently edited pages so the strip is never empty.
+    const recent = st.recent.filter(id => S.page(id) && !S.isTrashed(id) && !S.page(id).isRow).slice(0, 12)
+    if (recent.length < 6) {
+      Object.keys(st.pages)
+        .filter(id => !S.isTrashed(id) && !st.pages[id].isRow && recent.indexOf(id) === -1)
+        .sort((a, b) => (st.pages[b].updatedAt || 0) - (st.pages[a].updatedAt || 0))
+        .slice(0, 6 - recent.length)
+        .forEach(id => recent.push(id))
+    }
+    home.appendChild(h('div.home-section-title', null, U.icon('clock', 14), 'Jump back in'))
     const strip = h('div.home-cards')
     recent.forEach(id => {
       const p = S.page(id)
@@ -217,12 +340,34 @@ window.Folio = window.Folio || {}
     )
     home.appendChild(strip)
 
+    // Every top-level doc, with how much lives under it
+    const roots = S.rootPages()
+    if (roots.length) {
+      home.appendChild(h('div.home-section-title', null, U.icon('layers', 14), 'All docs'))
+      const all = h('div.doc-list')
+      roots.forEach(id => {
+        const p = st.pages[id]
+        const kids = S.childPages(id).length
+        const rows = p.db ? S.dbRows(id).length : 0
+        all.appendChild(
+          h('a.doc-item', { href: '#/p/' + id },
+            h('span.doc-icon', null, p.icon ? h('span', { text: p.icon }) : U.icon(p.type === 'database' ? 'database' : 'page', 18)),
+            h('span.doc-main', null,
+              h('span.doc-title', { text: S.pageTitle(p) }),
+              h('span.doc-sub', { text: p.db ? rows + (rows === 1 ? ' entry' : ' entries') : kids ? kids + (kids === 1 ? ' sub-page' : ' sub-pages') : 'Page' })
+            ),
+            h('span.doc-time', { text: 'Edited ' + U.timeAgo(p.updatedAt) }),
+            U.icon('chevronRight', 15)
+          )
+        )
+      })
+      home.appendChild(all)
+    }
+
     // Upcoming: dated rows from every database in the next two weeks
     const upcoming = []
     const today = U.toISODate(new Date())
-    const limit = new Date()
-    limit.setDate(limit.getDate() + 14)
-    const limitIso = U.toISODate(limit)
+    const limitIso = U.addDays(today, 14)
     Object.keys(st.pages).forEach(pid => {
       const dbp = st.pages[pid]
       if (!dbp.db || S.isTrashed(pid)) return
@@ -236,7 +381,7 @@ window.Folio = window.Folio || {}
       })
     })
     upcoming.sort((a, b) => (a.date < b.date ? -1 : 1))
-    home.appendChild(h('div.home-section-title', null, U.icon('calendar', 14), 'Upcoming'))
+    home.appendChild(h('div.home-section-title', null, U.icon('database', 14), 'Coming up in your databases'))
     const up = h('div.home-list')
     if (!upcoming.length) up.appendChild(h('div.home-empty', { text: 'Nothing scheduled in the next two weeks. Pages with dates in any database show up here.' }))
     upcoming.slice(0, 8).forEach(u => {
@@ -263,10 +408,7 @@ window.Folio = window.Folio || {}
     )
     tpls.appendChild(h('button.home-tpl.more', { onClick: () => app.openTemplates() }, h('div.ht-icon', null, U.icon('gallery', 22)), h('div.ht-name', { text: 'Browse all templates' })))
     home.appendChild(tpls)
-    view.appendChild(home)
-    $('scroller').scrollTop = 0
-    renderTopbar()
-    scheduleSidebar()
+    host.appendChild(home)
   }
 
   // ------------------------------------------------------------------ sidebar
@@ -283,6 +425,7 @@ window.Folio = window.Folio || {}
     const p = S.createPage({})
     app.open(p.id)
   }
+  app.newPage = newRootPage
 
   function newChildPage(parentId) {
     const p = S.createPage({ parentId })
@@ -293,84 +436,138 @@ window.Folio = window.Folio || {}
   function renderSidebar() {
     const st = S.state()
     const sb = $('sidebar')
-    const scrollTop = sb.querySelector('.sb-scroll') ? sb.querySelector('.sb-scroll').scrollTop : 0
+    const prev = sb.querySelector('.sb-scroll')
+    const scrollTop = prev ? prev.scrollTop : 0
     sb.innerHTML = ''
     const ws = st.workspace
-    const wsBtn = h('button.sb-workspace', { onClick: () => workspaceMenu(wsBtn) },
-      h('span.ws-icon', { text: ws.icon || (ws.name || 'W').trim().charAt(0).toUpperCase() }),
-      h('span.ws-name', { text: ws.name }),
-      U.icon('chevronDown', 12)
-    )
-    const top = h('div.sb-top', null,
-      wsBtn,
-      h('div.sb-top-actions', null,
-        h('button.sb-icon-btn', { title: 'Close sidebar (' + U.modKey + '\\)', onClick: () => app.toggleSidebar() }, U.icon('chevronsLeft', 16)),
-        h('button.sb-icon-btn', { title: 'New page', onClick: newRootPage }, U.icon('edit', 16))
+    const brand = h('button.sb-brand', { onClick: () => workspaceMenu(brand) },
+      ws.icon ? h('span.logo-mark.emoji', { text: ws.icon }) : h('span.logo-mark', { html: LOGO }),
+      h('span.sb-brand-text', null,
+        h('span.sb-brand-name', null, h('span', { text: ws.name }), U.icon('chevronDown', 13)),
+        h('span.sb-brand-sub', { text: 'Personal workspace' })
       )
     )
-    sb.appendChild(top)
-    const nav = h('div.sb-nav', null,
-      navItem('search', 'Search', () => app.search(), U.modKey + 'K'),
-      navItem('home', 'Home', () => app.home(), null, !currentId),
-      navItem('gear', 'Settings', () => app.settings()),
-      navItem('plus', 'New page', newRootPage)
-    )
-    sb.appendChild(nav)
+    sb.appendChild(h('div.sb-head', null, brand, h('button.sb-icon-btn', { title: 'Collapse sidebar (' + U.modKey + '\\)', onClick: () => app.toggleSidebar() }, U.icon('panel', 18))))
+    sb.appendChild(h('button.sb-search', { onClick: () => app.search() }, U.icon('search', 17), h('span', { text: 'Search' }), h('span.spacer'), h('kbd', { text: U.isMac ? '⌘K' : 'Ctrl K' }), h('kbd', { text: '/' })))
 
     const scroll = h('div.sb-scroll')
+    const t = U.todayISO()
+    const open = P.openTasks()
+    const due = open.filter(x => x.due && x.due <= t).length
+    const late = open.filter(P.isOverdue).length
+    const habits = P.habits()
+    const habitsDone = habits.filter(hb => hb.days[t]).length
+    const secOpen = key => st.settings.sections[key] !== false
+
+    scroll.appendChild(label('Main menu'))
+    const nav = h('div.sb-nav')
+    nav.appendChild(viewItem('home', 'dashboard', 'Dashboard'))
+    nav.appendChild(viewItem('tasks', 'tasks', 'My Tasks', due ? h('span.sb-count', { class: late ? 'alert' : null, title: late ? late + ' overdue' : due + ' due today', text: String(due) }) : null))
+    nav.appendChild(viewItem('board', 'board', 'Kanban Board'))
+    const evToday = P.eventsOn(t).length
+    nav.appendChild(viewItem('calendar', 'calendar', 'Calendar', evToday ? h('span.sb-count', { title: evToday + ' events today', text: String(evToday) }) : null))
+    const projOpen = secOpen('projects')
+    const chev = h('span.sb-chev', { role: 'button', title: projOpen ? 'Hide projects' : 'Show projects' }, U.icon('chevronRight', 14))
+    const projItem = viewItem('projects', 'folder', 'Projects', chev)
+    projItem.classList.toggle('open', projOpen)
+    chev.addEventListener('click', e => {
+      e.stopPropagation()
+      st.settings.sections.projects = !projOpen
+      S.save()
+      renderSidebar()
+    })
+    nav.appendChild(projItem)
+    if (projOpen) {
+      const sub = h('div.sb-sub')
+      P.activeProjects().forEach(p => sub.appendChild(projectItem(p)))
+      sub.appendChild(h('button.sb-item.sb-muted', { onClick: () => F.views.newProject() }, U.icon('plus', 15), h('span.sb-title', { text: 'New project' })))
+      nav.appendChild(sub)
+    }
+    const fs = F.focus.status()
+    const live = h('span.sb-live.focus-live', { class: 'tone-' + fs.tone, text: F.focus.fmt(fs.remaining) })
+    live.style.display = fs.running || fs.remaining < fs.total - 0.5 ? '' : 'none'
+    nav.appendChild(viewItem('focus', 'focus', 'Focus', live))
+    nav.appendChild(viewItem('habits', 'habit', 'Habits', habits.length ? h('span.sb-count', { title: 'Done today', text: habitsDone + '/' + habits.length }) : null))
+    nav.appendChild(viewItem('timeline', 'timeline', 'Timeline'))
+    nav.appendChild(viewItem('docs', 'page', 'Docs'))
+    scroll.appendChild(nav)
+
+    // Pinned projects and starred pages
+    const pinned = P.projects().filter(p => p.pinned)
     const favs = st.favorites.filter(id => S.page(id) && !S.isTrashed(id))
-    if (favs.length) {
-      scroll.appendChild(sectionHead('favorites', 'Favorites'))
-      if (st.settings.sections.favorites) {
-        const wrap = h('div.sb-tree')
-        favs.forEach(id => wrap.appendChild(treeItem(id, 0, 'fav')))
-        scroll.appendChild(wrap)
-      }
-    }
-    scroll.appendChild(sectionHead('private', 'Private', () => newRootPage()))
-    if (st.settings.sections.private) {
-      const wrap = h('div.sb-tree')
+    scroll.appendChild(h('div.sb-divider'))
+    scroll.appendChild(label('Pinned', h('button.sb-icon-btn', { title: 'New project', onClick: () => F.views.newProject() }, U.icon('plus', 15))))
+    const pin = h('div.sb-nav')
+    pinned.forEach(p => pin.appendChild(projectItem(p, true)))
+    favs.forEach(id => pin.appendChild(treeItem(id, 0, 'fav')))
+    if (!pinned.length && !favs.length) pin.appendChild(h('div.sb-empty', { text: 'Pin projects or star pages to keep them here.' }))
+    scroll.appendChild(pin)
+
+    // Page tree
+    const pagesOpen = secOpen('private')
+    scroll.appendChild(label(
+      h('button.sb-label-toggle', { onClick: () => { st.settings.sections.private = !pagesOpen; S.save(); renderSidebar() } }, 'Pages', U.icon(pagesOpen ? 'chevronDown' : 'chevronRight', 11)),
+      h('button.sb-icon-btn', { title: 'New page', onClick: newRootPage }, U.icon('plus', 15))
+    ))
+    if (pagesOpen) {
+      const tree = h('div.sb-nav.sb-tree')
       const roots = S.rootPages()
-      roots.forEach(id => wrap.appendChild(treeItem(id, 0, 'tree')))
-      if (!roots.length) wrap.appendChild(h('button.sb-item.sb-muted', { onClick: newRootPage }, h('span.sb-ico', null, U.icon('plus', 14)), h('span.sb-title', { text: 'Add a page' })))
-      scroll.appendChild(wrap)
+      roots.forEach(id => tree.appendChild(treeItem(id, 0, 'tree')))
+      if (!roots.length) tree.appendChild(h('button.sb-item.sb-muted', { onClick: newRootPage }, U.icon('plus', 15), h('span.sb-title', { text: 'Add a page' })))
+      scroll.appendChild(tree)
     }
-    scroll.appendChild(h('div.sb-gap'))
-    const trashBtn = navItem('trash', 'Trash', () => trashPopover(trashBtn))
-    scroll.appendChild(
-      h('div.sb-nav', null,
-        navItem('template', 'Templates', () => app.openTemplates()),
-        navItem('import', 'Import', () => app.importMarkdown()),
-        trashBtn
-      )
-    )
+
+    scroll.appendChild(h('div.sb-divider'))
+    scroll.appendChild(label('Others'))
+    const trashBtn = actionItem('trash', 'Trash', () => trashPopover(trashBtn))
+    scroll.appendChild(h('div.sb-nav', null,
+      actionItem('template', 'Templates', () => app.openTemplates()),
+      actionItem('import', 'Import', () => app.importMarkdown()),
+      trashBtn,
+      actionItem('keyboard', 'Shortcuts', () => app.shortcuts(), '?')
+    ))
     sb.appendChild(scroll)
     scroll.scrollTop = scrollTop
-    sb.appendChild(
-      h('div.sb-bottom', null,
-        h('button.sb-new', { onClick: newRootPage }, U.icon('plus', 16), 'New page'),
-        h('button.sb-icon-btn', { title: 'Keyboard shortcuts (?)', onClick: () => app.shortcuts() }, U.icon('help', 16))
+
+    const name = st.settings.userName && st.settings.userName !== 'You' ? st.settings.userName : 'You'
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark'
+    sb.appendChild(h('div.sb-bottom', null,
+      h('div.sb-account-row', null,
+        h('button.sb-account', { onClick: () => app.settings('account') },
+          h('span.avatar-sm', { text: name.charAt(0).toUpperCase() }),
+          h('span.sb-account-text', null, h('span.sb-account-name', { text: name }), h('span.sb-account-sub', { text: 'Saved on this device' }))
+        ),
+        h('button.sb-icon-btn', { title: dark ? 'Switch to light mode' : 'Switch to dark mode', onClick: () => S.setSetting('theme', dark ? 'light' : 'dark') }, U.icon(dark ? 'sun' : 'moon', 17)),
+        h('button.sb-icon-btn', { title: 'Settings', onClick: () => app.settings() }, U.icon('gear', 17))
       )
-    )
+    ))
     bindTrashDrop(trashBtn)
   }
 
-  function navItem(icon, label, onClick, hint, active) {
-    return h('button.sb-item.sb-navitem', { class: active ? 'active' : null, onClick }, h('span.sb-ico', null, U.icon(icon, 16)), h('span.sb-title', { text: label }), hint ? h('span.sb-hint', { text: hint }) : null)
+  function label(content, right) {
+    return h('div.sb-label', null, typeof content === 'string' ? h('span', { text: content }) : content, right || null)
   }
 
-  function sectionHead(key, label, onAdd) {
-    const st = S.state()
-    const open = st.settings.sections[key]
-    return h('div.sb-section', null,
-      h('button.sb-section-label', {
-        onClick: () => {
-          st.settings.sections[key] = !open
-          S.save()
-          renderSidebar()
-        },
-      }, label, U.icon(open ? 'chevronDown' : 'chevronRight', 10)),
-      onAdd ? h('button.sb-icon-btn.sb-section-add', { title: 'Add a page', onClick: onAdd }, U.icon('plus', 14)) : null
+  function viewItem(name, icon, text, right) {
+    const active = viewName === name || (name === 'projects' && viewName === 'project')
+    return h('button.sb-item', { class: active ? 'active' : null, 'aria-current': active ? 'page' : null, onClick: () => app.go(name) }, U.icon(icon, 18), h('span.sb-title', { text }), right || null)
+  }
+
+  function actionItem(icon, text, onClick, hint) {
+    return h('button.sb-item', { onClick }, U.icon(icon, 18), h('span.sb-title', { text }), hint ? h('kbd', { text: hint }) : null)
+  }
+
+  function projectItem(p, pinnedList) {
+    const pr = P.projectProgress(p.id)
+    const active = viewName === 'project' && viewParam === p.id
+    return h('button.sb-item', { class: active ? 'active' : null, onClick: () => app.go('project/' + p.id) },
+      K.badge(p, 'sm'),
+      h('span.sb-title', { text: p.name }),
+      pinnedList
+        ? h('span.sb-pin', { title: 'Unpin', role: 'button', onClick: e => { e.stopPropagation(); P.updateProject(p.id, { pinned: false }) } }, U.icon('pin', 15))
+        : pr.open
+          ? h('span.sb-hint.num', { text: String(pr.open) })
+          : null
     )
   }
 
@@ -395,7 +592,7 @@ window.Folio = window.Folio || {}
     const add = h('button.sb-icon-btn', { title: 'Add a page inside' }, U.icon('plus', 14))
     const item = h('div.sb-item.sb-page', {
       class: id === currentId ? 'active' : null,
-      style: { paddingLeft: 8 + depth * 12 + 'px' },
+      style: { paddingLeft: 12 + depth * 14 + 'px' },
       dataset: { id },
       draggable: 'true',
       role: 'link',
@@ -425,7 +622,7 @@ window.Folio = window.Folio || {}
     wrap.appendChild(item)
     if (expanded && p.type !== 'database') {
       const box = h('div.sb-children')
-      if (!kids.length) box.appendChild(h('div.sb-empty', { style: { paddingLeft: 30 + depth * 12 + 'px' }, text: 'No pages inside' }))
+      if (!kids.length) box.appendChild(h('div.sb-empty', { style: { paddingLeft: 42 + depth * 14 + 'px' }, text: 'No pages inside' }))
       kids.forEach(k => box.appendChild(treeItem(k, depth + 1, mode)))
       wrap.appendChild(box)
     }
@@ -564,7 +761,7 @@ window.Folio = window.Folio || {}
     const st = S.state()
     const theme = st.settings.theme
     UI.menu(anchor, [
-      { render: () => h('div.ws-card', null, h('span.ws-icon.big', { text: st.workspace.icon || st.workspace.name.charAt(0).toUpperCase() }), h('div', null, h('div.ws-card-name', { text: st.workspace.name }), h('div.muted.small', { text: 'Stored in this browser' }))) },
+      { render: () => h('div.ws-card', null, st.workspace.icon ? h('span.logo-mark.emoji', { text: st.workspace.icon }) : h('span.logo-mark', { html: LOGO }), h('div', null, h('div.ws-card-name', { text: st.workspace.name }), h('div.muted.small', { text: 'Personal workspace · saved on this device' }))) },
       { divider: true },
       { label: 'Settings', icon: 'gear', onClick: () => app.settings() },
       {
@@ -644,45 +841,134 @@ window.Folio = window.Folio || {}
     bar.innerHTML = ''
     const collapsed = $('app').classList.contains('sidebar-collapsed') || innerWidth < 760
     if (collapsed) bar.appendChild(h('button.top-btn.top-menu', { title: 'Open sidebar', onClick: () => app.toggleSidebar() }, U.icon('menu', 18)))
-    const crumbs = h('nav.crumbs')
+    const crumbs = h('nav.crumbs', { 'aria-label': 'Breadcrumb' })
+    const sep = () => h('span.crumb-sep', null, U.icon('chevronRight', 14))
+    const crumb = (text, onClick, current, icon) =>
+      h('button.crumb', { class: current ? 'current' : null, onClick: onClick || null, 'aria-current': current ? 'page' : null, title: text }, icon || null, h('span.crumb-title', { text }))
+    crumbs.appendChild(h('button.crumb.crumb-home', { title: 'Dashboard', onClick: () => app.go('home') }, U.icon('home', 17)))
     const p = S.page(currentId)
-    if (!p) {
-      crumbs.appendChild(h('span.crumb.static', null, U.icon('home', 14), h('span', { text: currentId ? 'Not found' : 'Home' })))
-      bar.appendChild(crumbs)
-      return
-    }
-    const chain = S.ancestors(p.id).concat([p])
-    let shown = chain
-    if (chain.length > 4) shown = [chain[0], null].concat(chain.slice(-2))
-    shown.forEach((c, i) => {
-      if (i) crumbs.appendChild(h('span.crumb-sep', { text: '/' }))
-      if (!c) {
-        const hidden = chain.slice(1, -2)
-        const more = h('button.crumb', { text: '…' })
-        more.addEventListener('click', () => UI.menu(more, hidden.map(x => ({ label: S.pageTitle(x), icon: x.icon || 'page', onClick: () => app.open(x.id) })), { width: 240 }))
-        crumbs.appendChild(more)
-        return
+    if (viewName) {
+      crumbs.appendChild(sep())
+      if (viewName === 'home') crumbs.appendChild(crumb('Dashboard', null, true))
+      else {
+        crumbs.appendChild(crumb('Dashboard', () => app.go('home')))
+        crumbs.appendChild(sep())
+        if (viewName === 'project') {
+          const pr = P.project(viewParam)
+          crumbs.appendChild(crumb('Projects', () => app.go('projects')))
+          crumbs.appendChild(sep())
+          crumbs.appendChild(crumb(pr ? pr.name : 'Project', null, true, pr ? K.badge(pr, 'xs') : null))
+        } else {
+          crumbs.appendChild(crumb(viewDef(viewName).title, null, true))
+        }
       }
-      crumbs.appendChild(
-        h('button.crumb', { onClick: () => app.open(c.id), title: S.pageTitle(c) },
-          c.icon ? h('span.crumb-icon', { text: c.icon }) : null,
-          h('span.crumb-title', { text: S.pageTitle(c) })
-        )
-      )
-    })
-    if (p.locked) crumbs.appendChild(h('button.lock-badge', { title: 'Unlock page', onClick: () => S.updatePage(p.id, { locked: false }) }, U.icon('lock', 12), 'Locked'))
+    } else if (p) {
+      crumbs.appendChild(sep())
+      crumbs.appendChild(crumb('Docs', () => app.go('docs')))
+      const chain = S.ancestors(p.id).concat([p])
+      let shown = chain
+      if (chain.length > 3) shown = [chain[0], null].concat(chain.slice(-2))
+      shown.forEach((c, i) => {
+        crumbs.appendChild(sep())
+        if (!c) {
+          const hidden = chain.slice(1, -2)
+          const more = h('button.crumb', { text: '…' })
+          more.addEventListener('click', () => UI.menu(more, hidden.map(x => ({ label: S.pageTitle(x), icon: x.icon || 'page', onClick: () => app.open(x.id) })), { width: 240 }))
+          crumbs.appendChild(more)
+          return
+        }
+        const last = i === shown.length - 1
+        crumbs.appendChild(crumb(S.pageTitle(c), last ? null : () => app.open(c.id), last, c.icon ? h('span.crumb-icon', { text: c.icon }) : null))
+      })
+      if (p.locked) crumbs.appendChild(h('button.lock-badge', { title: 'Unlock page', onClick: () => S.updatePage(p.id, { locked: false }) }, U.icon('lock', 12), 'Locked'))
+    } else {
+      crumbs.appendChild(sep())
+      crumbs.appendChild(crumb(currentId ? 'Not found' : 'Folio', null, true))
+    }
     bar.appendChild(crumbs)
+
     const right = h('div.top-right')
-    right.appendChild(h('span.top-edited', { text: 'Edited ' + U.timeAgo(p.updatedAt) }))
-    const share = h('button.top-btn.top-text', { onClick: () => sharePopover(share, p) }, 'Share')
-    right.appendChild(share)
-    const fav = S.isFavorite(p.id)
-    right.appendChild(h('button.top-btn', { class: fav ? 'fav-on' : null, title: fav ? 'Remove from Favorites' : 'Add to Favorites', onClick: () => S.toggleFavorite(p.id) }, U.icon(fav ? 'starFill' : 'star', 18)))
-    const more = h('button.top-btn', { title: 'Style, export, and more…' }, U.icon('dots', 18))
-    more.addEventListener('click', () => pageOptions(more, p))
-    right.appendChild(more)
+    const nu = nextUpChip()
+    if (nu) right.appendChild(nu)
+    const fs = F.focus.status()
+    const chip = h('button.focus-chip.focus-live-chip', { class: 'tone-' + fs.tone + (fs.running ? '' : ' paused'), title: 'Open focus timer', onClick: () => app.go('focus') }, F.focus.fmt(fs.remaining))
+    chip.style.display = fs.running || fs.remaining < fs.total - 0.5 ? '' : 'none'
+    right.appendChild(chip)
+    if (p) {
+      right.appendChild(h('span.top-edited', { text: 'Edited ' + U.timeAgo(p.updatedAt) }))
+      const share = h('button.top-btn.top-text', { onClick: () => sharePopover(share, p) }, 'Share')
+      right.appendChild(share)
+      const fav = S.isFavorite(p.id)
+      right.appendChild(h('button.top-btn', { class: fav ? 'fav-on' : null, title: fav ? 'Remove from Favorites' : 'Add to Favorites', onClick: () => S.toggleFavorite(p.id) }, U.icon(fav ? 'starFill' : 'star', 18)))
+      const more = h('button.top-btn', { title: 'Style, export, and more…' }, U.icon('dots', 18))
+      more.addEventListener('click', () => pageOptions(more, p))
+      right.appendChild(more)
+    } else {
+      right.appendChild(h('button.top-btn', { title: 'Search (' + U.modKey + 'K)', onClick: () => app.search() }, U.icon('search', 17)))
+      right.appendChild(h('span.top-sep'))
+      right.appendChild(h('button.btn-ink.sm', { title: 'New task (Q)', onClick: () => K.quickAddModal(viewName === 'project' ? { projectId: viewParam } : viewName === 'home' ? { due: U.todayISO() } : {}) }, U.icon('plus', 15), 'New task'))
+    }
     bar.appendChild(right)
   }
+
+  function nextUpChip() {
+    const t = U.todayISO()
+    const now = U.nowMin()
+    const items = P.agenda(t).filter(x => !x.allDay && (x.kind === 'event' || x.ref.status !== 'done'))
+    const cur = items.find(x => U.toMin(x.start) <= now && U.toMin(x.end) > now)
+    const next = items.find(x => U.toMin(x.start) > now)
+    const it = cur || next
+    if (!it) return null
+    const mins = U.toMin(it.start) - now
+    const when = cur ? 'Now · until ' + U.fmtTime(it.end) : mins <= 90 ? 'in ' + U.fmtDuration(mins) : 'at ' + U.fmtTime(it.start)
+    return h('button.next-up', { class: 'tone-' + it.tone, title: cur ? 'Happening now' : 'Up next', onClick: () => (it.kind === 'task' ? F.taskDrawer.open(it.id) : app.go('calendar')) },
+      h('span.dot'), h('b', { text: it.title }), h('span', { text: when }))
+  }
+
+  function updateLive(st) {
+    const show = st.running || st.remaining < st.total - 0.5
+    U.$$('.focus-live').forEach(el => {
+      el.textContent = F.focus.fmt(st.remaining)
+      el.style.display = show ? '' : 'none'
+      el.className = 'sb-live focus-live tone-' + st.tone
+    })
+    U.$$('.focus-live-chip').forEach(el => {
+      el.textContent = F.focus.fmt(st.remaining)
+      el.style.display = show ? '' : 'none'
+      el.className = 'focus-chip focus-live-chip tone-' + st.tone + (st.running ? '' : ' paused')
+    })
+  }
+
+  // Toast (and a system notification when the tab is hidden) shortly before events and timed tasks.
+  const notified = new Set()
+  function startReminders() {
+    const keyOf = (t, it) => t + it.id + it.start
+    const t0 = U.todayISO()
+    P.agenda(t0).forEach(it => {
+      if (U.toMin(it.start) < U.nowMin()) notified.add(keyOf(t0, it))
+    })
+    setInterval(() => {
+      const t = U.todayISO()
+      const now = U.nowMin()
+      P.agenda(t).forEach(it => {
+        if (it.allDay || (it.kind === 'task' && it.ref.status === 'done')) return
+        const lead = U.toMin(it.start) - now
+        const key = keyOf(t, it)
+        if (lead <= 10 && lead >= 0 && !notified.has(key)) {
+          notified.add(key)
+          const msg = (it.kind === 'task' ? 'Reminder: ' : '') + it.title + (lead > 0 ? ' starts in ' + lead + ' min' : ' is starting now')
+          UI.toast(msg, { duration: 9000, action: { label: 'Open', onClick: () => (it.kind === 'task' ? F.taskDrawer.open(it.id) : app.go('calendar')) } })
+          try {
+            if (document.hidden && window.Notification && Notification.permission === 'granted') new Notification('Folio', { body: msg })
+          } catch (e) {
+            /* optional */
+          }
+        }
+      })
+      if (!UI.anyOpen()) renderTopbar()
+    }, 30000)
+  }
+
   setInterval(() => {
     const el = document.querySelector('.top-edited')
     const p = S.page(currentId)
@@ -897,21 +1183,18 @@ window.Folio = window.Folio || {}
     $('peek').innerHTML = ''
   }
 
-  // ------------------------------------------------------------------ search
-  app.search = function() {
+  // ------------------------------------------------------------------ command palette
+  app.search = function(initial) {
     UI.closeAll()
-    const input = h('input.search-input', { placeholder: 'Search ' + S.state().workspace.name + '…', autofocus: true })
+    const input = h('input.search-input', { placeholder: 'Search, or type a command…', autofocus: true, 'aria-label': 'Search or run a command', id: 'palette-input' })
+    if (initial) input.value = initial
     const results = h('div.search-results')
     let rows = []
     let active = 0
     let modal
     const mark = (text, q) => {
       const span = h('span')
-      if (!q) {
-        span.textContent = text
-        return span
-      }
-      const i = text.toLowerCase().indexOf(q.toLowerCase())
+      const i = q ? text.toLowerCase().indexOf(q.toLowerCase()) : -1
       if (i === -1) {
         span.textContent = text
         return span
@@ -921,37 +1204,109 @@ window.Folio = window.Folio || {}
       span.appendChild(document.createTextNode(text.slice(i + q.length)))
       return span
     }
+    const dark = () => document.documentElement.getAttribute('data-theme') === 'dark'
+    const actions = () => [
+      { label: 'New task', icon: 'plus', hint: 'Q', run: () => K.quickAddModal() },
+      { label: 'New event', icon: 'calendar', run: () => app.go('calendar/new') },
+      { label: 'New page', icon: 'page', run: newRootPage },
+      { label: 'New project', icon: 'folder', run: () => F.views.newProject() },
+      { label: F.focus.status().running ? 'Pause the focus timer' : 'Start a focus session', icon: 'focus', run: () => F.focus.toggle() },
+      { label: 'Open today’s note', icon: 'note', run: () => app.dailyNote() },
+      { label: 'Go to Dashboard', icon: 'dashboard', hint: 'G H', run: () => app.go('home') },
+      { label: 'Go to My Tasks', icon: 'tasks', hint: 'G T', run: () => app.go('tasks') },
+      { label: 'Go to Kanban Board', icon: 'board', hint: 'G B', run: () => app.go('board') },
+      { label: 'Go to Calendar', icon: 'calendar', hint: 'G C', run: () => app.go('calendar') },
+      { label: 'Go to Projects', icon: 'folder', hint: 'G P', run: () => app.go('projects') },
+      { label: 'Go to Focus', icon: 'focus', hint: 'G F', run: () => app.go('focus') },
+      { label: 'Go to Habits', icon: 'habit', hint: 'G A', run: () => app.go('habits') },
+      { label: 'Go to Timeline', icon: 'timeline', hint: 'G L', run: () => app.go('timeline') },
+      { label: 'Go to Docs', icon: 'page', hint: 'G D', run: () => app.go('docs') },
+      { label: dark() ? 'Switch to light mode' : 'Switch to dark mode', icon: dark() ? 'sun' : 'moon', hint: U.modKey + 'Shift+L', run: () => S.setSetting('theme', dark() ? 'light' : 'dark') },
+      { label: 'Change wallpaper and accent', icon: 'palette', run: () => app.settings('appearance') },
+      { label: 'Open settings', icon: 'gear', run: () => app.settings() },
+      { label: 'Keyboard shortcuts', icon: 'keyboard', hint: '?', run: () => app.shortcuts() },
+    ]
     function render() {
       const q = input.value.trim()
+      const ql = q.toLowerCase()
       results.innerHTML = ''
       rows = []
-      let list
-      if (!q) {
-        const st = S.state()
-        list = st.recent.filter(id => S.page(id) && !S.isTrashed(id)).slice(0, 10).map(id => ({ page: S.page(id) }))
-        if (!list.length) list = S.search('', 10)
-        results.appendChild(h('div.search-group', { text: 'Recent' }))
-      } else {
-        list = S.search(q, 30)
-        results.appendChild(h('div.search-group', { text: list.length ? 'Best matches' : '' }))
-        if (!list.length) results.appendChild(h('div.search-empty', null, h('div', { text: 'No results for “' + q + '”' }), h('button.btn.btn-sm', { onClick: () => { modal.close(); const p = S.createPage({ title: q }); app.open(p.id) } }, U.icon('plus', 14), 'Create page “' + q + '”')))
-      }
-      list.forEach(r => {
-        const p = r.page
-        const crumbs = S.ancestors(p.id).map(a => S.pageTitle(a)).join(' / ')
-        const row = h('div.search-row', { onClick: () => choose(p), onMousemove: () => setActive(rows.indexOf(row)) },
-          h('span.sr-icon', null, p.icon ? h('span', { text: p.icon }) : U.icon(p.type === 'database' ? 'database' : 'page', 18)),
-          h('div.sr-main', null,
-            h('div.sr-title', null, mark(S.pageTitle(p), q), crumbs ? h('span.sr-crumbs', { text: ' — ' + crumbs }) : null),
-            r.snippet ? h('div.sr-snippet', null, mark(r.snippet, q)) : null
-          ),
-          h('span.sr-time', { text: U.timeAgo(p.updatedAt) }),
+      const section = title => results.appendChild(h('div.search-group', { text: title }))
+      const add = (icon, main, sub, right, run) => {
+        const row = h('div.search-row', { onClick: () => choose(row), onMousemove: () => setActive(rows.indexOf(row)) },
+          h('span.sr-icon', null, icon),
+          h('div.sr-main', null, h('div.sr-title', null, main), sub ? h('div.sr-snippet', null, sub) : null),
+          right ? h('span.sr-time', null, right) : null,
           h('span.sr-enter', null, U.icon('arrowRight', 14))
         )
-        row._page = p
+        row._run = run
         rows.push(row)
         results.appendChild(row)
-      })
+      }
+      const taskRow = t => {
+        const pr = P.project(t.projectId)
+        add(pr ? K.badge(pr, 'xs') : U.icon(t.status === 'done' ? 'checkCircle' : 'circle', 17), mark(t.title, q), [pr ? pr.name : 'No project', t.due ? ' · ' + U.relDay(t.due) + (t.time ? ' ' + U.fmtTime(t.time) : '') : ''].join(''), '#' + P.taskKey(t), () => F.taskDrawer.open(t.id))
+      }
+      const acts = actions().filter(a => !ql || a.label.toLowerCase().indexOf(ql) !== -1)
+      if (!q) {
+        section('Quick actions')
+        acts.slice(0, 6).forEach(a => add(U.icon(a.icon, 17), a.label, null, a.hint ? h('kbd', { text: a.hint }) : null, a.run))
+        const today = P.sortTasks(P.openTasks().filter(t => t.due && t.due <= U.todayISO())).slice(0, 4)
+        if (today.length) {
+          section('Due today')
+          today.forEach(taskRow)
+        }
+        const recent = S.state().recent.filter(id => S.page(id) && !S.isTrashed(id)).slice(0, 4)
+        if (recent.length) {
+          section('Recent pages')
+          recent.forEach(id => {
+            const pg = S.page(id)
+            add(pg.icon ? h('span', { text: pg.icon }) : U.icon('page', 17), S.pageTitle(pg), S.ancestors(id).map(a => S.pageTitle(a)).join(' / ') || null, U.timeAgo(pg.updatedAt), () => app.open(id))
+          })
+        }
+      } else {
+        if (acts.length) {
+          section('Actions')
+          acts.slice(0, 5).forEach(a => add(U.icon(a.icon, 17), mark(a.label, q), null, a.hint ? h('kbd', { text: a.hint }) : null, a.run))
+        }
+        const tasks = P.tasks().filter(t => (t.title + ' ' + (t.notes || '') + ' ' + (t.labels || []).join(' ') + ' ' + P.taskKey(t)).toLowerCase().indexOf(ql) !== -1)
+        if (tasks.length) {
+          section('Tasks')
+          P.sortTasks(tasks.filter(t => t.status !== 'done')).concat(tasks.filter(t => t.status === 'done')).slice(0, 6).forEach(taskRow)
+        }
+        const projects = P.projects().filter(p => (p.name + ' ' + (p.description || '')).toLowerCase().indexOf(ql) !== -1)
+        if (projects.length) {
+          section('Projects')
+          projects.slice(0, 4).forEach(p => add(K.badge(p, 'xs'), mark(p.name, q), p.description || null, P.projectProgress(p.id).pct + '%', () => app.go('project/' + p.id)))
+        }
+        const events = P.events().filter(e => e.date >= U.addDays(U.todayISO(), -7) && (e.title + ' ' + (e.location || '')).toLowerCase().indexOf(ql) !== -1).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
+        if (events.length) {
+          section('Events')
+          events.slice(0, 4).forEach(e => add(h('span.ev-dot', { class: 'tone-' + P.calendar(e.cal).tone }), mark(e.title, q), U.relDay(e.date) + (e.allDay ? ' · All day' : ' · ' + U.fmtTime(e.start) + ' – ' + U.fmtTime(e.end)), P.calendar(e.cal).name, () => {
+            app.go('calendar')
+          }))
+        }
+        const pages = S.search(q, 8)
+        if (pages.length) {
+          section('Pages')
+          pages.forEach(r => {
+            const pg = r.page
+            add(pg.icon ? h('span', { text: pg.icon }) : U.icon(pg.type === 'database' ? 'database' : 'page', 17), mark(S.pageTitle(pg), q), r.snippet ? mark(r.snippet, q) : S.ancestors(pg.id).map(a => S.pageTitle(a)).join(' / ') || null, U.timeAgo(pg.updatedAt), () => app.open(pg.id))
+          })
+        }
+        section('Create')
+        add(U.icon('plus', 17), h('span', null, 'New task: ', h('b', { text: q })), 'Dates, #projects and !priority are understood', null, () => {
+          const r = P.parseQuickAdd(q)
+          const f = { title: r.title || q }
+          ;['due', 'time', 'projectId', 'priority', 'repeat'].forEach(k => {
+            if (r[k]) f[k] = r[k]
+          })
+          if (r.labels.length) f.labels = r.labels
+          const t = P.addTask(f)
+          UI.toast('Added “' + t.title + '”', { action: { label: 'Open', onClick: () => F.taskDrawer.open(t.id) } })
+        })
+        add(U.icon('page', 17), h('span', null, 'New page: ', h('b', { text: q })), null, null, () => app.open(S.createPage({ title: q }).id))
+      }
       setActive(0)
     }
     function setActive(i) {
@@ -959,9 +1314,9 @@ window.Folio = window.Folio || {}
       rows.forEach((r, j) => r.classList.toggle('active', j === i))
       if (rows[i]) rows[i].scrollIntoView({ block: 'nearest' })
     }
-    function choose(p) {
+    function choose(row) {
       modal.close()
-      app.open(p.id)
+      row._run()
     }
     input.addEventListener('input', render)
     input.addEventListener('keydown', e => {
@@ -973,22 +1328,17 @@ window.Folio = window.Folio || {}
         setActive(Math.max(0, active - 1))
       } else if (e.key === 'Enter') {
         e.preventDefault()
-        if (rows[active]) {
-          if (U.mod(e) && rows[active]._page.isRow) {
-            modal.close()
-            app.peek(rows[active]._page.id)
-          } else choose(rows[active]._page)
-        }
+        if (rows[active]) choose(rows[active])
       }
     })
     render()
     modal = UI.modal(
       h('div.search-box', null,
-        h('div.search-head', null, U.icon('search', 18), input),
+        h('div.search-head', null, U.icon('search', 18), input, h('kbd', { text: 'esc' })),
         results,
-        h('div.search-foot', null, h('span', null, h('kbd', { text: '↑↓' }), ' Select'), h('span', null, h('kbd', { text: '↵' }), ' Open'), h('span', null, h('kbd', { text: 'esc' }), ' Close'))
+        h('div.search-foot', null, h('span', null, h('kbd', { text: '↑↓' }), ' Navigate'), h('span', null, h('kbd', { text: '↵' }), ' Open'), h('span', null, h('kbd', { text: 'G' }), ' then a letter to jump'), h('span.spacer'), h('span', null, 'Folio'))
       ),
-      { className: 'search-modal', width: 640, top: true }
+      { className: 'search-modal', width: 680, top: true }
     )
   }
 
@@ -1131,6 +1481,7 @@ window.Folio = window.Folio || {}
     const TABS = [
       ['account', 'My account', 'person'],
       ['prefs', 'Preferences', 'sun'],
+      ['appearance', 'Appearance', 'palette'],
       ['workspace', 'Workspace', 'home'],
       ['data', 'Data & storage', 'database'],
       ['shortcuts', 'Shortcuts', 'keyboard'],
@@ -1155,8 +1506,33 @@ window.Folio = window.Folio || {}
       } else if (current === 'prefs') {
         panel.appendChild(h('h2.set-h', { text: 'Preferences' }))
         panel.appendChild(row('Appearance', 'Customize how Folio looks on this device.', select(st.settings.theme, [['system', 'Use system setting'], ['light', 'Light'], ['dark', 'Dark']], v => S.setSetting('theme', v))))
-        panel.appendChild(row('Open on start', 'Choose what to show when Folio opens.', select(st.settings.startPage, [['last', 'Last visited page'], ['home', 'Home']], v => S.setSetting('startPage', v))))
+        panel.appendChild(row('Open on start', 'Choose what to show when Folio opens.', select(st.settings.startPage === 'last' ? 'last' : 'home', [['home', 'Dashboard'], ['last', 'Where I left off']], v => S.setSetting('startPage', v))))
+        panel.appendChild(row('Time format', 'How times appear in tasks and the calendar.', select(st.settings.clock24 ? '24' : '12', [['12', '12-hour (2:30pm)'], ['24', '24-hour (14:30)']], v => S.setSetting('clock24', v === '24'))))
+        const perm = window.Notification ? Notification.permission : 'unsupported'
+        panel.appendChild(row('Desktop reminders', 'Folio shows reminders in the app 10 minutes before events and timed tasks. Allow notifications to also get them when this tab is in the background.', perm === 'granted'
+          ? h('span.muted', { text: 'Allowed' })
+          : perm === 'unsupported' || perm === 'denied'
+            ? h('span.muted', { text: perm === 'denied' ? 'Blocked by the browser' : 'Not available here' })
+            : h('button.btn.btn-sm', { onClick: () => {
+                try {
+                  Notification.requestPermission().then(() => render())
+                } catch (e) {
+                  UI.toast('Notifications aren’t available here')
+                }
+              } }, 'Allow')))
         panel.appendChild(row('Open database pages in', 'How rows open when you click them.', select(st.settings.peekMode, [['side', 'Side peek'], ['full', 'Full page']], v => S.setSetting('peekMode', v))))
+      } else if (current === 'appearance') {
+        panel.appendChild(h('h2.set-h', { text: 'Appearance' }))
+        const themes = [['system', 'System', 'monitor'], ['light', 'Light', 'sun'], ['dark', 'Dark', 'moon']]
+        panel.appendChild(row('Theme', 'Light, dark, or follow your device.', h('div.theme-pick', null, themes.map(t => h('button.theme-opt', { class: st.settings.theme === t[0] ? 'active' : null, onClick: () => { S.setSetting('theme', t[0]); render() } }, U.icon(t[2], 15), t[1])))))
+        const accents = [['indigo', '#4b5cf0'], ['blue', '#2f7de1'], ['violet', '#8b5cf6'], ['emerald', '#10a36c'], ['amber', '#e38a0b'], ['rose', '#e5486d']]
+        panel.appendChild(row('Accent color', 'Used for focus rings, links and highlights.', h('div.accent-pick', null, accents.map(a => h('button.accent-dot', { class: (st.settings.accent || 'indigo') === a[0] ? 'active' : null, style: { background: a[1] }, title: a[0], 'aria-label': a[0], onClick: () => { S.setSetting('accent', a[0]); render() } })))))
+        const walls = [['none', 'Plain'], ['sky', 'Sky'], ['meadow', 'Meadow'], ['mist', 'Mist'], ['dusk', 'Dusk']]
+        panel.appendChild(h('div.set-row.col', null,
+          h('div.set-text', null, h('div.set-title', { text: 'Wallpaper' }), h('div.set-desc', { text: 'Shown behind the sidebar and around your workspace.' })),
+          h('div.wall-pick', null, walls.map(w => h('button.wall-opt', { class: (st.settings.wallpaper || 'none') === w[0] ? 'active' : null, onClick: () => { S.setSetting('wallpaper', w[0]); render() } },
+            h('span.wall-thumb', { class: 'wall-' + w[0] }, h('span.wallpaper')), h('span', { text: w[1] }))))
+        ))
       } else if (current === 'workspace') {
         const name = h('input.set-input', { value: st.workspace.name })
         name.addEventListener('input', () => {
@@ -1240,39 +1616,43 @@ window.Folio = window.Folio || {}
   function shortcutList() {
     const m = U.modKey
     const groups = [
-      ['General', [
-        [m + 'K', 'Search'],
+      ['Everywhere', [
+        [m + 'K  or  /', 'Search and run commands'],
+        ['Q  or  N', 'New task'],
+        ['G then H · T · B · C', 'Dashboard · Tasks · Board · Calendar'],
+        ['G then P · F · A · L · D', 'Projects · Focus · Habits · Timeline · Docs'],
         [m + '\\', 'Toggle sidebar'],
         [m + 'Shift+L', 'Toggle dark mode'],
         [m + 'Alt+N', 'New page'],
         [m + '[ / ' + m + ']', 'Go back / forward'],
         ['?', 'Show shortcuts'],
       ]],
-      ['Editing', [
+      ['Tasks and planning', [
+        ['↑ ↓  or  J K', 'Move between tasks'],
+        ['Enter', 'Open task details'],
+        ['Space  or  X', 'Complete the focused task'],
+        ['Esc', 'Close task details'],
+        ['Space', 'Start or pause the focus timer (Focus view)'],
+        ['← → · T', 'Previous / next period · today (Calendar)'],
+        ['D · W · M', 'Day, week or month view (Calendar)'],
+      ]],
+      ['Quick add understands', [
+        ['tomorrow 3pm, fri, next week', 'Due date and time'],
+        ['#project', 'Project'],
+        ['@label', 'Label'],
+        ['!high  !urgent  !!', 'Priority'],
+        ['every day, every week', 'Repeat'],
+        ['for 45m', 'Duration'],
+      ]],
+      ['Editing pages', [
         [m + 'Z / ' + m + 'Shift+Z', 'Undo / redo'],
         [m + 'B / I / U', 'Bold, italic, underline'],
-        [m + 'Shift+S', 'Strikethrough'],
         [m + 'E', 'Inline code'],
         [m + 'K', 'Add link (with text selected)'],
         [m + 'D', 'Duplicate block'],
-        [m + 'Enter', 'Check to-do / open toggle'],
         [m + 'Shift+↑/↓', 'Move block up / down'],
-        [m + 'Alt+0…9', 'Turn into text, headings, lists, code, page'],
         ['Tab / Shift+Tab', 'Indent / outdent'],
-        ['Esc', 'Select block'],
-        ['/', 'Insert a block'],
-        ['@', 'Mention a page or date'],
-      ]],
-      ['Markdown', [
-        ['# ## ###', 'Headings'],
-        ['- or *', 'Bulleted list'],
-        ['1.', 'Numbered list'],
-        ['[]', 'To-do'],
-        ['>', 'Toggle'],
-        ['"', 'Quote'],
-        ['```', 'Code block'],
-        ['---', 'Divider'],
-        ['**text**  *text*  `text`  ~text~', 'Bold, italic, code, strike'],
+        ['/  @  :', 'Insert a block, mention, emoji'],
       ]],
     ]
     return h('div.shortcuts', null, groups.map(g =>
@@ -1287,6 +1667,8 @@ window.Folio = window.Folio || {}
 
   // ------------------------------------------------------------------ global keys
   function bindGlobalKeys() {
+    let gAt = 0
+    const JUMP = { h: 'home', t: 'tasks', b: 'board', c: 'calendar', p: 'projects', f: 'focus', a: 'habits', l: 'timeline', d: 'docs' }
     window.addEventListener('keydown', e => {
       if (e.defaultPrevented) return
       const mod = U.mod(e)
@@ -1310,12 +1692,31 @@ window.Folio = window.Folio || {}
         e.preventDefault()
         if (e.key === '[') history.back()
         else history.forward()
-      } else if (!editing && e.key === '?' && !UI.anyOpen()) {
-        e.preventDefault()
-        app.shortcuts()
-      } else if (e.key === 'Escape' && peekId && !editing && !UI.anyOpen()) {
-        const ed = F.editor.active()
-        if (!ed || !ed.selected.size) app.closePeek()
+      } else if (!editing && !mod && !e.altKey && !UI.anyOpen()) {
+        if (Date.now() - gAt < 1200) {
+          gAt = 0
+          if (JUMP[key]) {
+            e.preventDefault()
+            e.stopImmediatePropagation()
+            app.go(JUMP[key])
+          }
+          return
+        }
+        if (key === 'g') {
+          gAt = Date.now()
+        } else if (key === 'q' || key === 'n') {
+          e.preventDefault()
+          K.quickAddModal(viewName === 'project' ? { projectId: viewParam } : {})
+        } else if (e.key === '/') {
+          e.preventDefault()
+          app.search()
+        } else if (e.key === '?') {
+          e.preventDefault()
+          app.shortcuts()
+        } else if (e.key === 'Escape' && peekId) {
+          const ed = F.editor.active()
+          if (!ed || !ed.selected.size) app.closePeek()
+        }
       }
     })
     window.addEventListener('resize', U.debounce(renderTopbar, 150))

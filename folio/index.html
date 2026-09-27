@@ -4,221 +4,380 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <title>Folio – notes, docs and projects in one place</title>
-    <meta name="description" content="Folio is a block-based workspace for notes, docs, tasks and databases that runs entirely in your browser." />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='3' width='20' height='26' rx='4' fill='%232d2c28'/%3E%3Crect x='9' y='6' width='19' height='23' rx='4' fill='%23f3a683' stroke='%232d2c28' stroke-width='2'/%3E%3Cpath d='M14 13h9M14 18h9M14 23h6' stroke='%232d2c28' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <title>Folio — your whole day in one calm place</title>
+    <meta name="description" content="Folio is a personal workspace for tasks, calendar, focus sessions, habits, projects and notes. It opens instantly, works offline and keeps your data on your device." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23101217'/%3E%3Cg transform='translate(6 6)'%3E%3Crect x='2.6' y='3.2' width='10' height='13.6' rx='2.8' fill='%23fff' opacity='.42'/%3E%3Crect x='7.2' y='2.4' width='10.2' height='15.2' rx='2.8' fill='%23fff'/%3E%3Cpath d='M10.2 7.4h4.2M10.2 10.2h4.2M10.2 13h2.4' stroke='%23101217' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="img/icon-180.png" />
+    <meta name="theme-color" content="#f3f7fd" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0c0f" media="(prefers-color-scheme: dark)" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" />
     <link rel="stylesheet" href="css/landing.css" />
   </head>
   <body>
-    <header class="nav">
+    <!-- Clouds: a soft white ellipse is blurred, then pushed around by fractal noise. -->
+    <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+      <filter id="cloud" x="-40%" y="-80%" width="180%" height="260%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="15" result="soft" />
+        <feTurbulence type="fractalNoise" baseFrequency="0.011" numOctaves="4" seed="7" result="noise" />
+        <feDisplacementMap in="soft" in2="noise" scale="140" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+      <filter id="cloud-sm" x="-40%" y="-80%" width="180%" height="260%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="soft" />
+        <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="4" seed="3" result="noise" />
+        <feDisplacementMap in="soft" in2="noise" scale="95" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </svg>
+
+    <header class="nav" id="nav">
       <a class="brand" href="index.html" aria-label="Folio home">
-        <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
-          <rect x="4" y="3" width="20" height="26" rx="4" fill="currentColor" />
-          <rect x="9" y="6" width="19" height="23" rx="4" fill="#f3a683" stroke="currentColor" stroke-width="2" />
-          <path d="M14 13h9M14 18h9M14 23h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="none"><rect x="2.6" y="3.2" width="10" height="13.6" rx="2.8" fill="currentColor" opacity=".42" /><rect x="7.2" y="2.4" width="10.2" height="15.2" rx="2.8" fill="currentColor" /><path d="M10.2 7.4h4.2M10.2 10.2h4.2M10.2 13h2.4" stroke="#101217" stroke-width="1.6" stroke-linecap="round" /></svg>
+        </span>
         <span>Folio</span>
       </a>
-      <nav class="nav-links">
-        <a href="#features">Product</a>
-        <a href="#blocks">Blocks</a>
-        <a href="#databases">Databases</a>
-        <a href="#templates">Templates</a>
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#tools">Tools</a>
+        <a href="#day">Your day</a>
+        <a href="#keys">Shortcuts</a>
         <a href="#faq">FAQ</a>
       </nav>
-      <div class="nav-cta">
-        <a class="btn btn-ghost" href="app.html#/home">Log in</a>
-        <a class="btn btn-dark" href="app.html">Get Folio free</a>
-      </div>
+      <a class="btn btn-ink btn-sm" href="app.html#/home">Open Folio <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></a>
     </header>
 
     <main>
-      <section class="hero">
-        <div class="hero-badge"><span class="dot"></span> Runs in your browser — no account needed</div>
-        <h1>Write, plan and organize.<br /><span class="hl">All in one calm place.</span></h1>
-        <p class="lead">
-          Folio is a block-based workspace for notes, docs, tasks and small databases. Everything you make is saved on
-          your device, so it opens instantly and stays yours.
-        </p>
-        <div class="hero-cta">
-          <a class="btn btn-primary btn-lg" href="app.html">Get Folio free</a>
-          <a class="btn btn-outline btn-lg" href="#features">See how it works →</a>
+      <!-- ------------------------------------------------------------ hero -->
+      <section class="hero sky" aria-labelledby="hero-title">
+        <div class="sky-stars" aria-hidden="true"></div>
+        <div class="drift drift-a" aria-hidden="true"><i></i></div>
+        <div class="drift drift-b" aria-hidden="true"><i></i></div>
+        <div class="drift drift-c" aria-hidden="true"><i></i></div>
+
+        <div class="hero-copy">
+          <a class="eyebrow" href="#tools">
+            <span class="eyebrow-dot" aria-hidden="true"></span>
+            Tasks · Calendar · Focus · Habits · Notes
+          </a>
+          <h1 id="hero-title">Your whole day,<br /><span class="grad">in one calm place.</span></h1>
+          <p class="lead">
+            Folio is a personal workspace for everything you juggle. Plan the day, block the time, focus on one thing and
+            keep the notes, without ten tabs open. It opens instantly, works offline and keeps your data on your device.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-ink btn-lg" href="app.html#/home">
+              Open Folio
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </a>
+            <a class="btn btn-glass btn-lg" href="#tools">Take the tour</a>
+          </div>
+          <ul class="ticks" aria-label="Highlights">
+            <li>Free</li>
+            <li>No sign-up</li>
+            <li>Works offline</li>
+            <li>Keyboard-first</li>
+          </ul>
         </div>
 
-        <div class="mock" aria-hidden="true">
-          <div class="mock-window">
-            <div class="mock-bar"><span></span><span></span><span></span></div>
-            <div class="mock-body">
-              <aside class="mock-side">
-                <div class="ms-ws"><b>M</b> My Workspace</div>
-                <div class="ms-item">🔍 Search</div>
-                <div class="ms-item">🏠 Home</div>
-                <div class="ms-label">Private</div>
-                <div class="ms-item active">👋 Getting Started</div>
-                <div class="ms-item">📝 Quick Note</div>
-                <div class="ms-item">✅ Task Board</div>
-                <div class="ms-item">📚 Reading List</div>
-                <div class="ms-item">📔 Journal</div>
-              </aside>
-              <div class="mock-page">
-                <div class="mp-cover"></div>
-                <div class="mp-content">
-                  <div class="mp-icon">🚀</div>
-                  <div class="mp-title">Launch plan</div>
-                  <div class="mp-callout">💡 Everything below is made of blocks. Drag them, nest them, turn them into anything.</div>
-                  <div class="mp-h">This week</div>
-                  <div class="mp-todo done"><i></i>Draft the announcement</div>
-                  <div class="mp-todo"><i></i>Review the checklist with the team</div>
-                  <div class="mp-todo"><i></i>Schedule the release</div>
-                  <div class="mp-board">
-                    <div class="mb-col"><span class="pill gray">Not started</span><div class="mb-card">Write FAQ</div><div class="mb-card">Record demo</div></div>
-                    <div class="mb-col"><span class="pill blue">In progress</span><div class="mb-card">Landing page</div></div>
-                    <div class="mb-col"><span class="pill green">Done</span><div class="mb-card">Pick a name</div><div class="mb-card">Design icon</div></div>
-                  </div>
-                </div>
-                <div class="mp-slash">
-                  <div class="sl-head">Basic blocks</div>
-                  <div class="sl-item on"><span>Aa</span><div><b>Text</b><small>Plain paragraph text</small></div></div>
-                  <div class="sl-item"><span>☑</span><div><b>To-do list</b><small>Checkboxes for tasks</small></div></div>
-                  <div class="sl-item"><span>H1</span><div><b>Heading 1</b><small>Large section heading</small></div></div>
-                  <div class="sl-item"><span>▦</span><div><b>Board view</b><small>Cards grouped into columns</small></div></div>
-                </div>
-              </div>
-            </div>
+        <div class="hero-stage">
+          <figure class="shot">
+            <picture>
+              <source srcset="img/shot-dashboard-dark.jpg" media="(prefers-color-scheme: dark)" />
+              <img src="img/shot-dashboard.jpg" width="2160" height="1350" alt="The Folio dashboard: greeting, quick actions, today's stats, the day's schedule and a task list." />
+            </picture>
+          </figure>
+
+          <div class="float float-focus" aria-hidden="true">
+            <span class="ff-ring"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" /><circle class="ff-arc" cx="22" cy="22" r="18" /></svg></span>
+            <span class="ff-text"><b data-focus-clock>24:59</b><small>Focus · Draft Q4 goals</small></span>
+          </div>
+          <div class="float float-streak" aria-hidden="true">
+            <span class="fs-emoji">🏃</span>
+            <span><b>Morning run</b><small><span class="flame">🔥</span> 7-day streak</small></span>
+          </div>
+          <div class="float float-added" aria-hidden="true">
+            <span class="fa-check"><svg viewBox="0 0 20 20"><path d="m5.5 10.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+            <span><b>Email Sam</b><small>Tomorrow · 3pm · Q4 Planning</small></span>
+          </div>
+
+          <div class="cloudbank" aria-hidden="true">
+            <i class="c c1"></i><i class="c c2"></i><i class="c c3"></i><i class="c c4"></i><i class="c c5"></i><i class="c c6"></i>
           </div>
         </div>
       </section>
 
-      <section class="features" id="features">
-        <div class="section-head">
-          <p class="eyebrow">One tool, many shapes</p>
-          <h2>Start with a blank page. Turn it into whatever you need.</h2>
+      <!-- ------------------------------------------------------------ bento -->
+      <section class="section" id="tools" aria-labelledby="tools-title">
+        <div class="section-head reveal">
+          <span class="kicker">The toolkit</span>
+          <h2 id="tools-title">Everything your day needs.<br />Nothing it doesn't.</h2>
+          <p>Six tools that share one set of data, so a task can sit on your list, your calendar and your focus timer at the same time.</p>
         </div>
-        <div class="grid">
-          <article class="card">
-            <div class="card-icon">✍️</div>
-            <h3>Docs that flow</h3>
-            <p>Type <kbd>/</kbd> to add headings, to-dos, toggles, quotes, callouts, code and images. Markdown shortcuts work as you type.</p>
+
+        <div class="bento">
+          <!-- Quick add -->
+          <article class="card b-qa tone-lavender reveal" aria-labelledby="qa-title">
+            <div class="card-copy">
+              <span class="chip-icon"><svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg></span>
+              <h3 id="qa-title">Type it like you'd say it</h3>
+              <p>Dates, times, projects, labels, priority and repeats are picked up as you type. Press Enter and it's on your list.</p>
+            </div>
+            <div class="demo demo-qa" aria-hidden="true">
+              <div class="qa-box">
+                <span class="qa-plus">+</span>
+                <span class="qa-text" data-qa-text></span><span class="qa-caret"></span>
+              </div>
+              <div class="qa-chips" data-qa-chips></div>
+              <div class="qa-list" data-qa-list></div>
+            </div>
           </article>
-          <article class="card">
-            <div class="card-icon">🗂️</div>
-            <h3>Pages inside pages</h3>
-            <p>Nest pages as deep as you like, drag them around the sidebar, and jump anywhere with breadcrumbs.</p>
+
+          <!-- Focus -->
+          <article class="card b-focus tone-sky reveal" aria-labelledby="focus-title">
+            <div class="card-copy">
+              <span class="chip-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.7" /><path d="M10 8v3l2 1.5M8 3h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg></span>
+              <h3 id="focus-title">Focus, then rest</h3>
+              <p>Start a session from any task. The timer keeps running while you move around the app.</p>
+            </div>
+            <div class="demo demo-focus">
+              <div class="fx-ring" aria-hidden="true">
+                <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" /><circle class="fx-arc" cx="60" cy="60" r="52" /></svg>
+                <div class="fx-center"><b data-focus-clock>25:00</b><small>Round 2 of 4</small></div>
+              </div>
+              <div class="fx-side">
+                <div class="fx-modes" aria-hidden="true"><span class="on">Focus 25</span><span>Break 5</span></div>
+                <div class="fx-task" aria-hidden="true"><i></i>Draft Q4 goals doc</div>
+                <button class="fx-play" type="button" data-focus-toggle aria-label="Pause the demo timer">
+                  <svg class="i-pause" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5v10M13 5v10" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
+                  <svg class="i-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4.8v10.4L15.5 10z" fill="currentColor" /></svg>
+                </button>
+              </div>
+            </div>
           </article>
-          <article class="card">
-            <div class="card-icon">📋</div>
-            <h3>Boards and tables</h3>
-            <p>Track work in databases with status, dates, tags and checkboxes. Filter, sort and switch views in a click.</p>
+
+          <!-- Calendar -->
+          <article class="card b-cal tone-mint reveal" aria-labelledby="cal-title">
+            <div class="card-copy row">
+              <div>
+                <span class="chip-icon"><svg viewBox="0 0 20 20"><rect x="3.5" y="4.5" width="13" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7" /><path d="M3.5 8.5h13M7 3v3M13 3v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg></span>
+                <h3 id="cal-title">A week you can actually see</h3>
+                <p>Drag to block time, move events and timed tasks around, and filter by calendar. Try the filters.</p>
+              </div>
+              <div class="mini-pills" role="group" aria-label="Filter the demo calendar" data-cal-filters>
+                <button type="button" class="on" data-cal="all">All</button>
+                <button type="button" data-cal="work"><i class="dot work"></i>Work</button>
+                <button type="button" data-cal="personal"><i class="dot personal"></i>Personal</button>
+                <button type="button" data-cal="health"><i class="dot health"></i>Health</button>
+              </div>
+            </div>
+            <div class="demo demo-cal" aria-hidden="true"></div>
           </article>
-          <article class="card">
-            <div class="card-icon">⚡</div>
-            <h3>Find anything fast</h3>
-            <p>Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>K</kbd> to search every title and paragraph, then hit Enter to open it.</p>
+
+          <!-- Habits -->
+          <article class="card b-habits tone-peach reveal" aria-labelledby="habit-title">
+            <div class="card-copy">
+              <span class="chip-icon"><svg viewBox="0 0 20 20"><path d="M10 17c3.3 0 5.5-2.2 5.5-5.2 0-3.5-3-5.1-3.6-8.3-1.9 1.3-3 3.3-2.9 5.2-1-.5-1.6-1.4-1.8-2.4C6 7.6 4.5 9.4 4.5 11.8 4.5 14.8 6.7 17 10 17Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" /></svg></span>
+              <h3 id="habit-title">Streaks that stick</h3>
+              <p>Tick today off in one tap. Tap one below.</p>
+            </div>
+            <div class="demo demo-habits" data-habits></div>
           </article>
-          <article class="card">
-            <div class="card-icon">🔒</div>
-            <h3>Private by default</h3>
-            <p>Your workspace lives in your browser’s storage. Export it as JSON or Markdown whenever you like.</p>
+
+          <!-- Board -->
+          <article class="card b-board tone-butter reveal" aria-labelledby="board-title">
+            <div class="card-copy">
+              <span class="chip-icon"><svg viewBox="0 0 20 20"><rect x="3" y="4" width="4" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6" /><rect x="8.5" y="4" width="4" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6" /><rect x="14" y="4" width="3.5" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6" /></svg></span>
+              <h3 id="board-title">Drag work forward</h3>
+              <p>A board for every project, with subtasks, due dates and priority on each card.</p>
+            </div>
+            <div class="demo demo-board" data-board aria-hidden="true">
+              <div class="kc"><div class="kc-head"><i class="todo"></i>To do</div><div class="kc-list" data-col="todo"></div></div>
+              <div class="kc"><div class="kc-head"><i class="doing"></i>Doing</div><div class="kc-list" data-col="doing"></div></div>
+              <div class="kc"><div class="kc-head"><i class="done"></i>Done</div><div class="kc-list" data-col="done"></div></div>
+            </div>
           </article>
-          <article class="card">
-            <div class="card-icon">🎨</div>
-            <h3>Make it yours</h3>
-            <p>Icons, covers, colors, three font styles, full-width pages and a dark mode that follows your system.</p>
+
+          <!-- Docs -->
+          <article class="card b-docs tone-rose reveal" aria-labelledby="docs-title">
+            <div class="card-copy">
+              <span class="chip-icon"><svg viewBox="0 0 20 20"><path d="M6 3.5h5.5L15 7v9.5H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" /><path d="M8.5 10.5h4M8.5 13.5h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg></span>
+              <h3 id="docs-title">Notes that grow into docs</h3>
+              <p>A block editor with headings, to-dos, tables, toggles, callouts and code. Type <kbd>/</kbd> for anything.</p>
+            </div>
+            <div class="demo demo-doc" aria-hidden="true">
+              <div class="doc">
+                <div class="doc-title">🎯 Q4 planning</div>
+                <div class="doc-h">Goals for the quarter</div>
+                <div class="doc-todo done"><i></i>Ship the portfolio refresh</div>
+                <div class="doc-todo"><i></i>Run a 10k in November</div>
+                <div class="doc-todo"><i></i>Launch the habit app beta</div>
+                <div class="doc-line"><span class="slash">/</span><span class="doc-caret"></span></div>
+              </div>
+              <div class="slash-menu" data-slash>
+                <div class="sm-label">Basic blocks</div>
+                <div class="sm-item on"><span class="sm-ic">H</span><span><b>Heading</b><small>Big section title</small></span></div>
+                <div class="sm-item"><span class="sm-ic">☑</span><span><b>To-do list</b><small>Track small steps</small></span></div>
+                <div class="sm-item"><span class="sm-ic">▦</span><span><b>Table</b><small>Rows and columns</small></span></div>
+                <div class="sm-item"><span class="sm-ic">💡</span><span><b>Callout</b><small>Make a note stand out</small></span></div>
+              </div>
+            </div>
           </article>
         </div>
       </section>
 
-      <section class="split" id="blocks">
-        <div class="split-text">
-          <p class="eyebrow">Blocks</p>
-          <h2>Everything is a block.</h2>
-          <p>
-            Every paragraph, list and image is a block you can drag, nest, recolor, duplicate or turn into another type.
-            Select a few and move them together, or send them to another page.
-          </p>
-          <ul class="checks">
-            <li>Drag handles and multi-block selection</li>
-            <li>Undo and redo for every change</li>
-            <li>Inline mentions of pages and dates with <kbd>@</kbd></li>
-            <li>Syntax highlighting for 20 languages</li>
+      <!-- ------------------------------------------------------------ day flow -->
+      <section class="section" id="day" aria-labelledby="day-title">
+        <div class="section-head reveal">
+          <span class="kicker">Morning to night</span>
+          <h2 id="day-title">Built around how a day actually goes.</h2>
+          <p>Glance at the dashboard in the morning, disappear into focus in the afternoon, close the loop in the evening.</p>
+        </div>
+        <div class="daygrid">
+          <article class="daycard dawn reveal">
+            <div class="dc-sky" aria-hidden="true"><span class="orb"></span><i class="c"></i></div>
+            <span class="dc-time">7:30am</span>
+            <h3>Plan in two minutes</h3>
+            <p>The dashboard lines up what's due, what's scheduled and what slipped. Pick the three things that matter and start.</p>
+          </article>
+          <article class="daycard noon reveal">
+            <div class="dc-sky" aria-hidden="true"><span class="orb"></span><i class="c"></i></div>
+            <span class="dc-time">1:15pm</span>
+            <h3>Stay in the zone</h3>
+            <p>Start a focus session from any task. The next event sits quietly in the top bar, so nothing sneaks up on you.</p>
+          </article>
+          <article class="daycard dusk reveal">
+            <div class="dc-sky" aria-hidden="true"><span class="orb"></span><i class="c"></i></div>
+            <span class="dc-time">9:40pm</span>
+            <h3>Close the loop</h3>
+            <p>Tick off habits, write today's note and let repeating tasks line up their next round on their own.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ keys -->
+      <section class="section" id="keys" aria-labelledby="keys-title">
+        <div class="keys-panel reveal">
+          <div class="keys-copy">
+            <span class="kicker">Keyboard-first</span>
+            <h2 id="keys-title">Fast when you are.</h2>
+            <p>Every tool is a keystroke away. Press <kbd>?</kbd> inside Folio to see them all.</p>
+          </div>
+          <ul class="keys">
+            <li><span class="kbds"><kbd data-mod>⌘</kbd><kbd>K</kbd></span>Search everything</li>
+            <li><span class="kbds"><kbd>Q</kbd></span>New task from anywhere</li>
+            <li><span class="kbds"><kbd>G</kbd><span class="then">then</span><kbd>C</kbd></span>Jump to calendar</li>
+            <li><span class="kbds"><kbd>G</kbd><span class="then">then</span><kbd>F</kbd></span>Jump to focus</li>
+            <li><span class="kbds"><kbd data-mod>⌘</kbd><kbd>⇧</kbd><kbd>L</kbd></span>Light or dark</li>
+            <li><span class="kbds"><kbd data-mod>⌘</kbd><kbd>\</kbd></span>Hide the sidebar</li>
           </ul>
         </div>
-        <div class="chips" aria-label="Block types">
-          <span>Aa Text</span><span>H1 Heading</span><span>☑ To-do</span><span>• Bullets</span><span>1. Numbers</span>
-          <span>▸ Toggle</span><span>❝ Quote</span><span>💡 Callout</span><span>— Divider</span><span>&lt;/&gt; Code</span>
-          <span>🖼 Image</span><span>📄 Sub-page</span><span>↗ Page link</span><span>☰ Contents</span><span>▦ Database</span>
+      </section>
+
+      <!-- ------------------------------------------------------------ more -->
+      <section class="section" aria-labelledby="more-title">
+        <div class="section-head reveal">
+          <span class="kicker">And the rest</span>
+          <h2 id="more-title">Small things that add up.</h2>
+        </div>
+        <div class="minis">
+          <div class="mini reveal"><span class="mi tone-lavender"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h7M7 10h9M5.5 14.5h6"/><path d="M3.5 3v14"/></svg></span><h3>Projects &amp; timeline</h3><p>Group work into projects and see it all on a timeline with today marked.</p></div>
+          <div class="mini reveal"><span class="mi tone-sky"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V8a3 3 0 0 1 3-3h8.5M13.5 3l2 2-2 2M16 11v1a3 3 0 0 1-3 3H4.5M6.5 17l-2-2 2-2"/></svg></span><h3>Repeating tasks</h3><p>Daily, weekdays, weekly or monthly. The next one appears when you finish.</p></div>
+          <div class="mini reveal"><span class="mi tone-butter"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.8 4.2l3 3L8 15H5v-3z"/><path d="M11 6l3 3"/></svg></span><h3>Daily notes</h3><p>A dated journal page, one click away from the dashboard.</p></div>
+          <div class="mini reveal"><span class="mi tone-mint"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4" width="13" height="12" rx="2.5"/><path d="M3.5 8.5h13M8.5 8.5V16"/></svg></span><h3>Docs &amp; databases</h3><p>Tables, boards, galleries and calendars built from your own pages.</p></div>
+          <div class="mini reveal"><span class="mi tone-peach"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="5.5" height="5.5" rx="1.5"/><rect x="11" y="3.5" width="5.5" height="5.5" rx="1.5"/><rect x="3.5" y="11" width="5.5" height="5.5" rx="1.5"/><rect x="11" y="11" width="5.5" height="5.5" rx="1.5"/></svg></span><h3>Templates</h3><p>Meeting notes, weekly planner, roadmap, reading list, trip planner and more.</p></div>
+          <div class="mini reveal"><span class="mi tone-rose"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 12.2A6.5 6.5 0 0 1 7.8 4.5a6.5 6.5 0 1 0 7.7 7.7z"/></svg></span><h3>Wallpapers &amp; dark mode</h3><p>Sky, meadow, mist or dusk behind your workspace, six accents, light or dark.</p></div>
+          <div class="mini reveal"><span class="mi tone-sky"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="5"/><path d="m16 16-3.3-3.3"/></svg></span><h3>One search box</h3><p>Tasks, events, projects and pages, all from <kbd data-mod>⌘</kbd><kbd>K</kbd>.</p></div>
+          <div class="mini reveal"><span class="mi tone-lavender"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 16V4M4 7l3-3 3 3M13 4v12M10 13l3 3 3-3"/></svg></span><h3>Import &amp; export</h3><p>Markdown in, Markdown and JSON out. Back up whenever you like.</p></div>
         </div>
       </section>
 
-      <section class="split reverse" id="databases">
-        <div class="split-text">
-          <p class="eyebrow">Databases</p>
-          <h2>One set of data. Five ways to see it.</h2>
-          <p>
-            Every row is a page with properties. Look at the same tasks as a table, a board, a gallery, a list or a
-            calendar — and open any row in a side peek without losing your place.
-          </p>
-        </div>
-        <div class="views">
-          <div class="view"><b>Table</b><span>Rows and columns you can resize, sort and filter.</span></div>
-          <div class="view"><b>Board</b><span>Drag cards between columns to change status.</span></div>
-          <div class="view"><b>Gallery</b><span>Visual cards with covers or content previews.</span></div>
-          <div class="view"><b>List</b><span>A tidy list for reading and notes.</span></div>
-          <div class="view"><b>Calendar</b><span>Drop pages on days to reschedule.</span></div>
+      <!-- ------------------------------------------------------------ privacy -->
+      <section class="section" aria-labelledby="local-title">
+        <div class="local reveal">
+          <span class="local-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="1.8" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="1.8" /><circle cx="12" cy="15.5" r="1.4" fill="currentColor" /></svg></span>
+          <div>
+            <h2 id="local-title">Yours, and only yours.</h2>
+            <p>Folio keeps everything in your browser's storage on this device. There's no account, no server and no tracking. Export a full backup any time from Settings.</p>
+          </div>
+          <a class="btn btn-ink" href="app.html#/home">Start planning</a>
         </div>
       </section>
 
-      <section class="templates" id="templates">
-        <div class="section-head">
-          <p class="eyebrow">Templates</p>
-          <h2>Don’t start from scratch.</h2>
+      <!-- ------------------------------------------------------------ faq -->
+      <section class="section faq-wrap" id="faq" aria-labelledby="faq-title">
+        <div class="section-head reveal">
+          <span class="kicker">Questions</span>
+          <h2 id="faq-title">Good to know.</h2>
         </div>
-        <div class="tpl-row">
-          <a class="tpl" href="app.html"><span>🗓️</span><b>Meeting notes</b><small>Agenda, notes and action items.</small></a>
-          <a class="tpl" href="app.html"><span>🚀</span><b>Project roadmap</b><small>Projects on a board by stage.</small></a>
-          <a class="tpl" href="app.html"><span>🌱</span><b>Habit tracker</b><small>Daily check-ins in a table.</small></a>
-          <a class="tpl" href="app.html"><span>🧳</span><b>Trip planner</b><small>Itinerary and packing list.</small></a>
+        <div class="faq reveal">
+          <details>
+            <summary>Is Folio free?</summary>
+            <p>Yes. It's a static web app with no account and no subscription. Open it and start using it.</p>
+          </details>
+          <details>
+            <summary>Where is my data stored?</summary>
+            <p>In your browser's local storage on this device. Nothing is sent anywhere. Clearing your browser data removes it, so export a backup from Settings now and then.</p>
+          </details>
+          <details>
+            <summary>Does it work offline?</summary>
+            <p>Once the page has loaded, everything runs in your browser, so you can keep working without a connection.</p>
+          </details>
+          <details>
+            <summary>Can I use it on my phone?</summary>
+            <p>Yes. The layout adapts to small screens: the sidebar tucks away, the calendar opens on a single day and the dashboard stacks into two columns.</p>
+          </details>
+          <details>
+            <summary>Can I bring my notes in, or take them out?</summary>
+            <p>Import Markdown files as pages, export any page as Markdown, and export the whole workspace as a JSON backup that you can import again later.</p>
+          </details>
         </div>
       </section>
 
-      <section class="faq" id="faq">
-        <div class="section-head">
-          <h2>Questions and answers</h2>
+      <!-- ------------------------------------------------------------ final -->
+      <section class="final sky" aria-labelledby="final-title">
+        <div class="sky-stars" aria-hidden="true"></div>
+        <div class="cloudbank" aria-hidden="true"><i class="c c1"></i><i class="c c2"></i><i class="c c3"></i><i class="c c4"></i><i class="c c5"></i><i class="c c6"></i></div>
+        <div class="final-copy reveal">
+          <h2 id="final-title">Give your day a home.</h2>
+          <p>Open Folio and your workspace is ready, with sample projects to poke at.</p>
+          <a class="btn btn-ink btn-lg" href="app.html#/home">
+            Open Folio
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </a>
         </div>
-        <details>
-          <summary>Where is my data stored?</summary>
-          <p>In your browser’s local storage on this device. Nothing is sent to a server. Clearing site data removes it, so export a backup from Settings → Data & storage.</p>
-        </details>
-        <details>
-          <summary>Do I need an account?</summary>
-          <p>No. Open the app and start writing. Your name and workspace name are just local preferences.</p>
-        </details>
-        <details>
-          <summary>Can I move my notes in or out?</summary>
-          <p>Yes. Import Markdown files, paste Markdown straight into a page, and export any page as Markdown or HTML. The whole workspace exports as JSON.</p>
-        </details>
-        <details>
-          <summary>Does it work on my phone?</summary>
-          <p>The layout adapts to small screens: the sidebar slides in from the menu button and pages reflow to fit.</p>
-        </details>
-      </section>
-
-      <section class="final">
-        <h2>Your next idea deserves a good home.</h2>
-        <a class="btn btn-primary btn-lg" href="app.html">Get Folio free</a>
       </section>
     </main>
 
-    <footer class="footer">
-      <div class="brand small">
-        <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
-          <rect x="4" y="3" width="20" height="26" rx="4" fill="currentColor" />
-          <rect x="9" y="6" width="19" height="23" rx="4" fill="#f3a683" stroke="currentColor" stroke-width="2" />
-          <path d="M14 13h9M14 18h9M14 23h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
+    <footer class="foot">
+      <a class="brand" href="index.html" aria-label="Folio home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="none"><rect x="2.6" y="3.2" width="10" height="13.6" rx="2.8" fill="currentColor" opacity=".42" /><rect x="7.2" y="2.4" width="10.2" height="15.2" rx="2.8" fill="currentColor" /><path d="M10.2 7.4h4.2M10.2 10.2h4.2M10.2 13h2.4" stroke="#101217" stroke-width="1.6" stroke-linecap="round" /></svg>
+        </span>
         <span>Folio</span>
-      </div>
-      <p>Built with plain HTML, CSS and JavaScript. No trackers, no servers.</p>
+      </a>
+      <nav class="foot-links" aria-label="Footer">
+        <a href="app.html#/home">Dashboard</a>
+        <a href="app.html#/tasks">Tasks</a>
+        <a href="app.html#/calendar">Calendar</a>
+        <a href="app.html#/focus">Focus</a>
+        <a href="app.html#/docs">Docs</a>
+      </nav>
+      <p class="foot-note">A personal workspace. Everything stays on your device. © <span data-year>2026</span></p>
     </footer>
+
+    <script src="js/landing.js"></script>
+    <script>
+      // Cache the app for offline use when served over http(s). Sandboxed frames refuse this, which is fine.
+      try {
+        if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+          addEventListener('load', function() {
+            try {
+              navigator.serviceWorker.register('sw.js').catch(function() {})
+            } catch (e) {}
+          })
+        }
+      } catch (e) {}
+    </script>
   </body>
 </html>

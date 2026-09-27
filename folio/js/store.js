@@ -33,7 +33,10 @@ window.Folio = window.Folio || {}
     sidebarCollapsed: false,
     expanded: {},
     userName: 'You',
-    startPage: 'last',
+    startPage: 'home',
+    wallpaper: 'sky',
+    accent: 'indigo',
+    clock24: false,
     peekMode: 'side',
     lastPage: null,
     sections: { favorites: true, private: true },
@@ -55,6 +58,7 @@ window.Folio = window.Folio || {}
       p.props = p.props || {}
       if (p.type === 'database' && !p.db) p.db = S.defaultDb('table')
     })
+    if (F.planner) F.planner.normalize(state)
   }
 
   S.load = function() {
@@ -77,6 +81,11 @@ window.Folio = window.Folio || {}
       F.seed.populate()
     }
     normalize()
+    // Workspaces created before the planner existed get sample planner data once.
+    if (!state.toolsSeeded) {
+      F.seed.populateTools()
+      state.toolsSeeded = true
+    }
     persist()
   }
 
@@ -84,13 +93,15 @@ window.Folio = window.Folio || {}
     state = { pages: {}, rootOrder: [], favorites: [], recent: [], settings: state && state.settings }
     normalize()
     F.seed.populate()
+    F.seed.populateTools()
+    state.toolsSeeded = true
     persist()
     S.emit('reset')
   }
 
   S.clearAll = function() {
     const settings = state.settings
-    state = { pages: {}, rootOrder: [], favorites: [], recent: [], settings }
+    state = { pages: {}, rootOrder: [], favorites: [], recent: [], settings, toolsSeeded: true }
     normalize()
     persist()
     S.emit('reset')

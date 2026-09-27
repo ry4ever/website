@@ -23,9 +23,13 @@ python3 -m http.server 8080
 **Editor**
 
 - Blocks: text, headings 1–3, to-dos, bulleted and numbered lists, toggles,
-  quotes, callouts, dividers, code (with syntax highlighting), images, sub-pages,
-  links to pages, table of contents and inline databases
-- `/` command menu, `@` mentions for pages and dates
+  toggle headings, quotes, callouts, dividers, code (with syntax highlighting),
+  images, simple tables, sub-pages, links to pages, table of contents and inline
+  databases
+- `/` command menu, `@` mentions for pages and dates, `:` for emoji
+- Simple tables with Tab/Enter navigation, header row and column, a
+  right-click menu for inserting and deleting rows and columns, and
+  spreadsheet-style paste
 - Markdown shortcuts (`#`, `-`, `1.`, `[]`, `>`, `"`, ` ``` `, `---`, `**bold**`,
   `*italic*`, `` `code` ``, `~strike~`)
 - A formatting toolbar for selected text: bold, italic, underline, strikethrough,
@@ -43,6 +47,9 @@ python3 -m http.server 8080
   duplicate, move, and export to Markdown or HTML
 - Search (`Ctrl/⌘ K`) across titles and content, a Home view with recent pages
   and upcoming dated items, templates, and Markdown import
+- Backlinks listing the pages that mention or link to the current page
+- Page history: versions are saved every couple of minutes while you edit and
+  can be previewed and restored
 
 **Databases**
 
@@ -51,6 +58,8 @@ python3 -m http.server 8080
   checkbox, URL, email, created time and last edited time
 - Filters, sorts, search, hidden properties, column resizing, drag to reorder
   rows, drag cards between board columns or calendar days
+- Column calculations in tables: counts, percentages, sum, average, median,
+  min, max, range, checked counts and date ranges
 - Rows are full pages that open in a side peek
 
 **Settings**

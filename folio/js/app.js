@@ -704,22 +704,41 @@ window.Folio = window.Folio || {}
   }
 
   function pageHTML(p) {
-    const md = F.md.fromPage(p)
-    const body = md
-      .split('\n')
-      .map(line => {
-        let m
-        if ((m = /^(#{1,3}) (.*)$/.exec(line))) return '<h' + m[1].length + '>' + F.md.inlineToHtml(m[2]) + '</h' + m[1].length + '>'
-        if ((m = /^\s*- \[( |x)\] (.*)$/.exec(line))) return '<p>' + (m[1] === 'x' ? '☑' : '☐') + ' ' + F.md.inlineToHtml(m[2]) + '</p>'
-        if ((m = /^\s*[-*] (.*)$/.exec(line))) return '<li>' + F.md.inlineToHtml(m[1]) + '</li>'
-        if ((m = /^\s*\d+\. (.*)$/.exec(line))) return '<li>' + F.md.inlineToHtml(m[1]) + '</li>'
-        if ((m = /^> (.*)$/.exec(line))) return '<blockquote>' + F.md.inlineToHtml(m[1]) + '</blockquote>'
-        if (line === '---') return '<hr>'
-        if (!line.trim()) return ''
-        return '<p>' + F.md.inlineToHtml(line) + '</p>'
-      })
-      .join('\n')
-    return '<!doctype html><html><head><meta charset="utf-8"><title>' + U.escapeHTML(S.pageTitle(p)) + '</title><style>body{font:16px/1.6 system-ui,sans-serif;max-width:720px;margin:48px auto;padding:0 24px;color:#2d2c28}blockquote{border-left:3px solid currentColor;margin:0;padding-left:14px}code{background:#f1f0ec;padding:1px 4px;border-radius:4px}</style></head><body>' + body + '</body></html>'
+    return '<!doctype html><html><head><meta charset="utf-8"><title>' + U.escapeHTML(S.pageTitle(p)) + '</title><style>body{font:16px/1.6 system-ui,sans-serif;max-width:720px;margin:48px auto;padding:0 24px;color:#2d2c28}blockquote{border-left:3px solid currentColor;margin:0;padding-left:14px}code{background:#f1f0ec;padding:1px 4px;border-radius:4px}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px 8px}</style></head><body>' + mdToHtml(F.md.fromPage(p)) + '</body></html>'
+  }
+
+  // A small Markdown renderer for exports and history previews.
+  function mdToHtml(md) {
+    const lines = md.split('\n')
+    const out = []
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      let m
+      if (/^\s*```/.test(line)) {
+        const code = []
+        i++
+        while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++])
+        out.push('<pre><code>' + U.escapeHTML(code.join('\n')) + '</code></pre>')
+        continue
+      }
+      if (/^\|.*\|$/.test(line.trim())) {
+        const rows = [line]
+        while (i + 1 < lines.length && /^\|.*\|$/.test(lines[i + 1].trim())) rows.push(lines[++i])
+        out.push('<table>' + rows.filter(r => !/^\|[\s:|-]+\|$/.test(r.trim())).map(r => '<tr>' + r.trim().slice(1, -1).split('|').map(c => '<td>' + F.md.inlineToHtml(c.trim()) + '</td>').join('') + '</tr>').join('') + '</table>')
+        continue
+      }
+      if ((m = /^(#{1,3}) (.*)$/.exec(line))) out.push('<h' + m[1].length + '>' + F.md.inlineToHtml(m[2]) + '</h' + m[1].length + '>')
+      else if ((m = /^(\s*)- \[( |x)\] (.*)$/.exec(line))) out.push('<p style="margin-left:' + m[1].length * 6 + 'px">' + (m[2] === 'x' ? '☑' : '☐') + ' ' + F.md.inlineToHtml(m[3]) + '</p>')
+      else if ((m = /^(\s*)[-*] (.*)$/.exec(line))) out.push('<p style="margin-left:' + m[1].length * 6 + 'px">• ' + F.md.inlineToHtml(m[2]) + '</p>')
+      else if ((m = /^(\s*)(\d+)\. (.*)$/.exec(line))) out.push('<p style="margin-left:' + m[1].length * 6 + 'px">' + m[2] + '. ' + F.md.inlineToHtml(m[3]) + '</p>')
+      else if ((m = /^> (.*)$/.exec(line))) out.push('<blockquote>' + F.md.inlineToHtml(m[1]) + '</blockquote>')
+      else if (line === '---') out.push('<hr>')
+      else if ((m = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(line.trim()))) {
+        const src = U.safeUrl(m[2])
+        if (src) out.push('<p><img alt="' + U.escapeHTML(m[1]) + '" src="' + U.escapeHTML(src) + '" style="max-width:100%"></p>')
+      } else if (line.trim()) out.push('<p>' + F.md.inlineToHtml(line) + '</p>')
+    }
+    return out.join('\n')
   }
 
   function toggleRow(label, icon, on, onChange) {
@@ -757,6 +776,7 @@ window.Folio = window.Folio || {}
         }),
         item('duplicate', 'Duplicate', () => app.open(S.duplicatePage(p.id).id)),
         item('moveTo', 'Move to', () => moveToPicker(anchor, p.id)),
+        p.type !== 'database' ? item('clock', 'Page history', () => app.history(p.id)) : null,
         item('undo', 'Undo', () => {
           if (!S.undo(p.id)) UI.toast('Nothing to undo')
         }, U.modKey + 'Z'),
@@ -774,6 +794,59 @@ window.Folio = window.Folio || {}
       )
     )
     pop = UI.popover(anchor, content, { className: 'menu-pop', placement: 'bottom-end', width: 280, autofocus: false })
+  }
+
+  // ------------------------------------------------------------------ page history
+  app.history = function(pageId) {
+    UI.closeAll()
+    S.recordVersion(pageId, true)
+    const versions = S.versions(pageId)
+    const list = h('div.hist-list')
+    const preview = h('div.hist-preview')
+    let current = 0
+    let modal
+    function render() {
+      list.innerHTML = ''
+      list.appendChild(h('div.set-nav-head', { text: 'Versions' }))
+      versions.forEach((v, i) => {
+        list.appendChild(
+          h('button.hist-item', { class: i === current ? 'active' : null, onClick: () => { current = i; render() } },
+            h('div.hist-when', { text: i === 0 ? 'Current version' : U.timeAgo(v.t) }),
+            h('div.hist-date', { text: U.formatDate(v.t, true) })
+          )
+        )
+      })
+      const v = versions[current]
+      preview.innerHTML = ''
+      if (!v) {
+        preview.appendChild(h('div.muted', { text: 'No versions yet. Versions are saved as you edit.' }))
+        return
+      }
+      const doc = h('div.hist-doc')
+      doc.innerHTML = mdToHtml(F.md.fromPage({ title: v.title, icon: v.icon, blocks: v.blocks, type: 'page' }))
+      preview.appendChild(doc)
+    }
+    render()
+    const restore = h('button.btn.btn-primary.btn-sm', {
+      onClick: () => {
+        const v = versions[current]
+        if (!v || current === 0) return modal.close()
+        S.restoreVersion(pageId, v)
+        modal.close()
+        UI.toast('Restored the version from ' + U.formatDate(v.t, true), { action: { label: 'Undo', onClick: () => S.undo(pageId) } })
+      },
+    }, 'Restore version')
+    modal = UI.modal(
+      h('div.history', null,
+        list,
+        h('div.hist-main', null,
+          h('div.tpl-head', null, h('div.tpl-title', { text: 'Page history' }), h('button.btn-icon', { onClick: () => modal.close() }, U.icon('x', 16))),
+          preview,
+          h('div.hist-foot', null, h('span.muted.small', { text: 'Folio saves a version every couple of minutes while you edit.' }), restore)
+        )
+      ),
+      { width: 900, className: 'history-modal' }
+    )
   }
 
   // ------------------------------------------------------------------ peek

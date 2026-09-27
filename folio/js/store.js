@@ -388,6 +388,10 @@ window.Folio = window.Folio || {}
     ids.forEach(pid => {
       delete state.pages[pid]
       delete history[pid]
+      if (loadVersions()[pid]) {
+        delete versions[pid]
+        saveVersions()
+      }
     })
     state.favorites = state.favorites.filter(f => state.pages[f])
     state.recent = state.recent.filter(f => state.pages[f])
@@ -563,6 +567,7 @@ window.Folio = window.Folio || {}
     const parts = []
     S.walkBlocks(p.blocks || [], b => {
       if (b.text) parts.push(b.type === 'code' ? b.text : stripTags(b.text))
+      if (b.rows) b.rows.forEach(r => parts.push(r.map(stripTags).join(' ')))
     })
     if (p.isRow && p.props) {
       Object.keys(p.props).forEach(k => {
@@ -644,6 +649,114 @@ window.Folio = window.Folio || {}
     return true
   }
   S.canUndo = pageId => !!(history[pageId] && history[pageId].undo.length)
+
+  // ---------------- Backlinks ----------------
+  S.backlinks = function(id) {
+    const needle = 'data-page-id="' + id + '"'
+    const out = []
+    Object.keys(state.pages).forEach(pid => {
+      if (pid === id || S.isTrashed(pid)) return
+      const p = state.pages[pid]
+      let hit = false
+      S.walkBlocks(p.blocks || [], b => {
+        if ((b.type === 'pagelink' && b.pageId === id) || (b.text && b.text.indexOf(needle) !== -1) || (b.rows && JSON.stringify(b.rows).indexOf(needle.replace(/"/g, '\\"')) !== -1)) {
+          hit = true
+          return false
+        }
+      })
+      if (hit) out.push(p)
+    })
+    return out
+  }
+
+  // ---------------- Page history (versions) ----------------
+  const VKEY = 'folio.versions.v1'
+  const VERSION_GAP = 2 * 60 * 1000
+  let versions = null
+  function loadVersions() {
+    if (!versions) {
+      try {
+        versions = JSON.parse(localStorage.getItem(VKEY) || '{}') || {}
+      } catch (e) {
+        versions = {}
+      }
+    }
+    return versions
+  }
+  const saveVersions = U.debounce(function() {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      try {
+        localStorage.setItem(VKEY, JSON.stringify(versions))
+        return
+      } catch (e) {
+        // Out of space: drop the oldest version across all pages and retry.
+        let oldest = null
+        Object.keys(versions).forEach(pid => {
+          const v = versions[pid][0]
+          if (v && (!oldest || v.at < oldest.v.at)) oldest = { pid, v }
+        })
+        if (!oldest) return
+        versions[oldest.pid].shift()
+        if (!versions[oldest.pid].length) delete versions[oldest.pid]
+      }
+    }
+  }, 800)
+  window.addEventListener('beforeunload', () => saveVersions.flush())
+
+  // Large inline images are not duplicated into history; restores reuse the live copy.
+  function slimBlocks(blocks) {
+    return blocks.map(b => {
+      const c = Object.assign({}, b)
+      if (c.type === 'image' && c.url && c.url.length > 20000) c.url = '@live'
+      c.children = slimBlocks(b.children || [])
+      return c
+    })
+  }
+
+  S.recordVersion = function(pageId, force) {
+    const p = state && state.pages[pageId]
+    if (!p || p.type === 'database' || p.trashed) return
+    const v = loadVersions()
+    const list = v[pageId] || []
+    const snap = { t: p.updatedAt, at: Date.now(), title: p.title, icon: p.icon, blocks: slimBlocks(p.blocks) }
+    const key = JSON.stringify([snap.title, snap.icon, snap.blocks])
+    const last = list[list.length - 1]
+    if (last && JSON.stringify([last.title, last.icon, last.blocks]) === key) return
+    if (last && !force && snap.at - last.at < VERSION_GAP) return
+    if (!p.blocks.length && !p.title && !list.length) return
+    list.push(snap)
+    while (list.length > 30) list.shift()
+    v[pageId] = list
+    saveVersions()
+  }
+
+  S.versions = function(pageId) {
+    return (loadVersions()[pageId] || []).slice().reverse()
+  }
+
+  S.restoreVersion = function(pageId, snap) {
+    const p = state.pages[pageId]
+    if (!p) return
+    S.recordVersion(pageId, true)
+    S.checkpoint(pageId)
+    const live = {}
+    S.walkBlocks(p.blocks, b => {
+      if (b.type === 'image') live[b.id] = b.url
+    })
+    const restore = blocks =>
+      blocks.map(b => {
+        const c = Object.assign({}, b)
+        if (c.url === '@live') c.url = live[c.id] || ''
+        c.children = restore(b.children || [])
+        return c
+      })
+    p.title = snap.title
+    p.icon = snap.icon
+    p.blocks = restore(JSON.parse(JSON.stringify(snap.blocks)))
+    p.updatedAt = Date.now()
+    S.reconcileChildren(pageId)
+    S.commit('page', pageId)
+  }
 
   // ---------------- Database helpers ----------------
   S.dbRows = function(dbId) {

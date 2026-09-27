@@ -28,6 +28,7 @@ window.Folio = window.Folio || {}
     pagelink: { label: 'Link to page', desc: 'Link to an existing page', icon: 'link' },
     image: { label: 'Image', desc: 'Upload or embed with a link', icon: 'image' },
     toc: { label: 'Table of contents', desc: 'An outline of this page', icon: 'toc' },
+    table: { label: 'Table', desc: 'A simple grid of text', icon: 'table' },
     database: { label: 'Database', desc: 'Inline database', icon: 'table' },
   }
   const TURN_INTO = ['text', 'h1', 'h2', 'h3', 'page', 'todo', 'bullet', 'numbered', 'toggle', 'code', 'quote', 'callout']
@@ -89,6 +90,15 @@ window.Folio = window.Folio || {}
       this.bind()
       this.render()
       this.unsub = S.on((type, id) => this.onStore(type, id))
+      S.recordVersion(pageId)
+    }
+
+    scheduleVersion() {
+      if (this.versionTimer) return
+      this.versionTimer = setTimeout(() => {
+        this.versionTimer = null
+        S.recordVersion(this.pageId)
+      }, 120000)
     }
 
     get page() {
@@ -101,6 +111,8 @@ window.Folio = window.Folio || {}
 
     destroy() {
       this.closeMenus()
+      clearTimeout(this.versionTimer)
+      S.recordVersion(this.pageId, true)
       this.unsub()
       this.mounts.forEach(m => m.destroy && m.destroy())
       this.mounts = []
@@ -126,6 +138,7 @@ window.Folio = window.Folio || {}
       const p = this.page
       if (!p) return
       p.updatedAt = Date.now()
+      this.scheduleVersion()
       this.muted = true
       try {
         S.commit('page', p.id)
@@ -317,6 +330,25 @@ window.Folio = window.Folio || {}
         header.appendChild(props)
         this.mounts.push(F.database.rowProps(props, p))
       }
+      const links = S.backlinks(p.id)
+      if (links.length) {
+        const list = h('div.backlinks-list', { style: { display: 'none' } },
+          links.map(lp =>
+            h('a.backlink', { href: '#/p/' + lp.id, onClick: e => { e.preventDefault(); F.app.open(lp.id) } },
+              lp.icon ? h('span.bl-icon', { text: lp.icon }) : U.icon('page', 14),
+              h('span', { text: S.pageTitle(lp) })
+            )
+          )
+        )
+        const btn = h('button.backlinks-btn', {
+          onClick: () => {
+            const open = list.style.display === 'none'
+            list.style.display = open ? '' : 'none'
+            btn.classList.toggle('open', open)
+          },
+        }, U.icon('link', 13), links.length + (links.length === 1 ? ' backlink' : ' backlinks'))
+        header.appendChild(h('div.backlinks', null, btn, list))
+      }
       if (p.type !== 'database' && !p.blocks.length && !locked) header.appendChild(this.renderEmptyState(p))
       return header
     }
@@ -391,7 +423,7 @@ window.Folio = window.Folio || {}
     renderBlock(b, depth, num) {
       const locked = this.locked
       const el = h('div.block', {
-        class: 'bt-' + b.type + (b.color ? ' ' + b.color : '') + (b.type === 'todo' && b.checked ? ' checked' : '') + (b.type === 'toggle' && b.open ? ' open' : ''),
+        class: 'bt-' + b.type + (b.color ? ' ' + b.color : '') + (b.type === 'todo' && b.checked ? ' checked' : '') + (b.type === 'toggle' && b.open ? ' open' : '') + (b.type === 'toggle' && b.heading ? ' th-' + b.heading : ''),
         dataset: { id: b.id },
       })
       const row = h('div.block-row')
@@ -405,7 +437,7 @@ window.Folio = window.Folio || {}
           class: 'block-text' + (extraClass ? ' ' + extraClass : '') + (b.type === 'text' ? ' ph-focus' : ''),
           contenteditable: editable,
           spellcheck: 'true',
-          'data-placeholder': (INFO[b.type] && INFO[b.type].ph) || '',
+          'data-placeholder': b.type === 'toggle' && b.heading ? 'Toggle heading ' + b.heading : (INFO[b.type] && INFO[b.type].ph) || '',
         })
         t.innerHTML = U.sanitize(b.text)
         this.hydrate(t)
@@ -458,6 +490,9 @@ window.Folio = window.Folio || {}
           break
         case 'toc':
           content.appendChild(this.renderToc())
+          break
+        case 'table':
+          content.appendChild(this.renderTable(b))
           break
         case 'database': {
           const host = h('div.inline-db', { contenteditable: 'false' })
@@ -680,10 +715,165 @@ window.Folio = window.Folio || {}
       pop = UI.popover(anchor, h('div.cover-picker', null, tabs, body), { width: 420, placement: 'bottom-center' })
     }
 
+    renderTable(b) {
+      const locked = this.locked
+      const rows = b.rows && b.rows.length ? b.rows : [['']]
+      const table = h('table.stable', { class: (b.header ? 'head-row ' : '') + (b.colHeader ? 'head-col' : '') })
+      rows.forEach((r, ri) => {
+        const tr = h('tr')
+        r.forEach((cell, ci) => {
+          const td = h('td.st-cell', { contenteditable: locked ? 'false' : 'true', spellcheck: 'true', dataset: { r: String(ri), c: String(ci) } })
+          td.innerHTML = U.sanitize(cell)
+          this.hydrate(td)
+          tr.appendChild(td)
+        })
+        table.appendChild(tr)
+      })
+      const inner = h('div.stable-inner', null, table)
+      if (!locked) {
+        inner.appendChild(h('button.st-add.st-add-row', { title: 'Add a row', tabindex: '-1', onMousedown: e => e.preventDefault(), onClick: () => this.tableOp(b, 'rowBelow', rows.length - 1, 0) }, U.icon('plus', 12)))
+        inner.appendChild(h('button.st-add.st-add-col', { title: 'Add a column', tabindex: '-1', onMousedown: e => e.preventDefault(), onClick: () => this.tableOp(b, 'colRight', 0, rows[0].length - 1) }, U.icon('plus', 12)))
+      }
+      return h('div.stable-wrap', { contenteditable: 'false' }, h('div.stable-scroll', null, inner))
+    }
+
+    cellEl(blockId, r, c) {
+      const el = this.blockEl(blockId)
+      return el && el.querySelector('.st-cell[data-r="' + r + '"][data-c="' + c + '"]')
+    }
+
+    focusCell(blockId, r, c, atEnd) {
+      const cell = this.cellEl(blockId, r, c)
+      if (!cell) return
+      this.clearSelection()
+      U.setCaret(cell, atEnd ? cell.textContent.length : 0)
+      U.scrollIntoViewIfNeeded(cell, this.root.closest('.scroller, .peek-scroll'))
+    }
+
+    tableOp(b, op, r, c) {
+      this.checkpoint()
+      const rows = b.rows
+      const cols = rows[0].length
+      let fr = r
+      let fc = c
+      if (op === 'rowAbove' || op === 'rowBelow') {
+        const at = op === 'rowAbove' ? r : r + 1
+        rows.splice(at, 0, new Array(cols).fill(''))
+        fr = at
+      } else if (op === 'colLeft' || op === 'colRight') {
+        const at = op === 'colLeft' ? c : c + 1
+        rows.forEach(row => row.splice(at, 0, ''))
+        fc = at
+      } else if (op === 'delRow') {
+        if (rows.length === 1) return this.deleteBlocks([b.id])
+        rows.splice(r, 1)
+        fr = Math.min(r, rows.length - 1)
+      } else if (op === 'delCol') {
+        if (cols === 1) return this.deleteBlocks([b.id])
+        rows.forEach(row => row.splice(c, 1))
+        fc = Math.min(c, cols - 2)
+      } else if (op === 'header') {
+        b.header = !b.header
+      } else if (op === 'colHeader') {
+        b.colHeader = !b.colHeader
+      }
+      this.changed()
+      this.renderBlocks()
+      this.focusCell(b.id, fr, fc)
+    }
+
+    cellMenu(cell, anchor) {
+      const b = this.blockOfEl(cell)
+      const r = +cell.dataset.r
+      const c = +cell.dataset.c
+      UI.menu(anchor, [
+        { header: 'Row' },
+        { label: 'Insert row above', icon: 'arrowUp', onClick: () => this.tableOp(b, 'rowAbove', r, c) },
+        { label: 'Insert row below', icon: 'arrowDown', onClick: () => this.tableOp(b, 'rowBelow', r, c) },
+        { label: 'Delete row', icon: 'trash', danger: true, onClick: () => this.tableOp(b, 'delRow', r, c) },
+        { header: 'Column' },
+        { label: 'Insert column left', icon: 'chevronLeft', onClick: () => this.tableOp(b, 'colLeft', r, c) },
+        { label: 'Insert column right', icon: 'chevronRight', onClick: () => this.tableOp(b, 'colRight', r, c) },
+        { label: 'Delete column', icon: 'trash', danger: true, onClick: () => this.tableOp(b, 'delCol', r, c) },
+        { divider: true },
+        { label: 'Header row', icon: 'table', checked: !!b.header, onClick: () => this.tableOp(b, 'header', r, c) },
+        { label: 'Header column', icon: 'table', checked: !!b.colHeader, onClick: () => this.tableOp(b, 'colHeader', r, c) },
+      ], { width: 230 })
+    }
+
+    onCellKey(e, cell) {
+      const b = this.blockOfEl(cell)
+      if (!b) return
+      const mod = U.mod(e)
+      const key = e.key
+      const r = +cell.dataset.r
+      const c = +cell.dataset.c
+      const rows = b.rows
+      if (mod && key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) this.redo()
+        else this.undo()
+        return
+      }
+      if (mod && ['b', 'i', 'u'].indexOf(key.toLowerCase()) !== -1) {
+        e.preventDefault()
+        document.execCommand({ b: 'bold', i: 'italic', u: 'underline' }[key.toLowerCase()])
+        this.syncText(cell)
+        return
+      }
+      if (key === 'Escape') {
+        e.preventDefault()
+        cell.blur()
+        this.selectBlocks([b.id])
+        return
+      }
+      if (key === 'Tab') {
+        e.preventDefault()
+        let nr = r
+        let nc = c + (e.shiftKey ? -1 : 1)
+        if (nc >= rows[0].length) {
+          nc = 0
+          nr++
+        } else if (nc < 0) {
+          nc = rows[0].length - 1
+          nr--
+        }
+        if (nr >= rows.length) return this.tableOp(b, 'rowBelow', rows.length - 1, 0)
+        if (nr < 0) return
+        this.focusCell(b.id, nr, nc, true)
+        return
+      }
+      if (key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        if (r + 1 < rows.length) this.focusCell(b.id, r + 1, c, true)
+        else this.tableOp(b, 'rowBelow', r, c)
+        return
+      }
+      if (key === 'ArrowUp' && U.caretOnFirstLine(cell)) {
+        e.preventDefault()
+        if (r > 0) this.focusCell(b.id, r - 1, c, true)
+        else {
+          const prev = this.neighbor(b.id, -1)
+          if (prev) this.focus(prev.id, 'end')
+        }
+        return
+      }
+      if (key === 'ArrowDown' && U.caretOnLastLine(cell)) {
+        e.preventDefault()
+        if (r + 1 < rows.length) this.focusCell(b.id, r + 1, c, true)
+        else {
+          const next = this.neighbor(b.id, 1)
+          if (next) this.focus(next.id, 'start')
+          else this.insertAfter(b, S.newBlock('text'))
+        }
+      }
+    }
+
     renderToc() {
       const heads = []
       S.walkBlocks(this.page.blocks, b => {
         if (b.type === 'h1' || b.type === 'h2' || b.type === 'h3') heads.push(b)
+        else if (b.type === 'toggle' && b.heading) heads.push(Object.assign({}, b, { type: 'h' + b.heading }))
       })
       const box = h('div.toc', { contenteditable: 'false' })
       if (!heads.length) box.appendChild(h('div.toc-empty', { text: 'Add headings to build a table of contents.' }))
@@ -741,6 +931,13 @@ window.Folio = window.Folio || {}
     }
     focus(id, pos) {
       const el = this.textEl(id)
+      const blk = this.blockEl(id)
+      if (!el && blk && blk.querySelector('.st-cell')) {
+        const c = this.find(id)
+        const last = pos === 'end' || (pos && pos.atEnd)
+        this.focusCell(id, last ? c.block.rows.length - 1 : 0, 0, last)
+        return
+      }
       if (!el) {
         if (this.blockEl(id)) this.selectBlocks([id])
         return
@@ -755,7 +952,8 @@ window.Folio = window.Folio || {}
     syncText(el) {
       const b = this.blockOfEl(el)
       if (!b) return
-      if (b.type === 'code') b.text = el.textContent
+      if (el.classList.contains('st-cell')) b.rows[+el.dataset.r][+el.dataset.c] = cleanHTML(el.innerHTML)
+      else if (b.type === 'code') b.text = el.textContent
       else b.text = cleanHTML(el.innerHTML)
       this.page.updatedAt = Date.now()
       S.save()
@@ -789,6 +987,7 @@ window.Folio = window.Folio || {}
         if (e.target.classList && e.target.classList.contains('block-text')) {
           if (this.slash && !this.slash.keep) this.closeSlash()
           if (this.mention) this.closeMention()
+          if (this.emojiMenu) this.emojiMenu.close()
         }
       })
       r.addEventListener('compositionstart', () => (this.composing = true))
@@ -804,6 +1003,13 @@ window.Folio = window.Folio || {}
         }
       })
       r.addEventListener('mousedown', e => this.onMouseDown(e))
+      r.addEventListener('contextmenu', e => {
+        const cell = e.target.closest && e.target.closest('.st-cell')
+        if (cell && !this.locked) {
+          e.preventDefault()
+          this.cellMenu(cell, { x: e.clientX, y: e.clientY })
+        }
+      })
       r.addEventListener('dragover', e => this.onDragOver(e))
       r.addEventListener('dragleave', e => {
         if (!r.contains(e.relatedTarget)) this.hideDrop()
@@ -825,11 +1031,24 @@ window.Folio = window.Folio || {}
         this.muted = false
         return
       }
+      const cell = t.closest && t.closest('.st-cell')
+      if (cell) {
+        const cb = this.blockOfEl(cell)
+        if (!cb) return
+        const tnow = Date.now()
+        if (tnow - this.lastInput > 1000) S.checkpoint(this.pageId)
+        this.lastInput = tnow
+        if (cell.innerHTML === '<br>') cell.innerHTML = ''
+        this.syncText(cell)
+        this.scheduleVersion()
+        return
+      }
       const el = t.closest && t.closest('.block-text')
       if (!el) return
       const b = this.blockOfEl(el)
       if (!b) return
       const now = Date.now()
+      this.scheduleVersion()
       if (now - this.lastInput > 1000) S.checkpoint(this.pageId)
       this.lastInput = now
       if (b.type === 'code') {
@@ -848,9 +1067,11 @@ window.Folio = window.Folio || {}
         if (this.markdownShortcut(el, b, e.data)) return
         if (e.data === '/' && !this.slash) this.maybeOpenSlash(el, b)
         else if (e.data === '@' && !this.mention) this.maybeOpenMention(el, b)
+        else if (e.data === ':' && !this.emojiMenu) this.maybeOpenEmoji(el, b)
       }
       if (this.slash) this.updateSlash()
       if (this.mention) this.updateMention()
+      if (this.emojiMenu) this.emojiMenu.update()
       if (/^h[123]$/.test(b.type)) U.$$('.toc', this.root).forEach(x => x.replaceWith(this.renderToc()))
     }
 
@@ -943,12 +1164,15 @@ window.Folio = window.Folio || {}
       const t = e.target
       const mod = U.mod(e)
       if (t === this.titleEl) return this.onTitleKey(e)
+      const cell = t.closest && t.closest('.st-cell')
+      if (cell) return this.onCellKey(e, cell)
       const el = t.closest && t.closest('.block-text')
       if (!el) return
       const b = this.blockOfEl(el)
       if (!b) return
       if (this.slash && this.slash.handleKey(e)) return
       if (this.mention && this.mention.handleKey(e)) return
+      if (this.emojiMenu && this.emojiMenu.handleKey(e)) return
       const key = e.key
 
       if (mod && key.toLowerCase() === 'z') {
@@ -1097,7 +1321,7 @@ window.Folio = window.Folio || {}
     }
 
     neighbor(id, dir) {
-      const list = this.flat().filter(b => this.textEl(b.id))
+      const list = this.flat().filter(b => this.textEl(b.id) || b.type === 'table')
       const i = list.findIndex(b => b.id === id)
       return list[i + dir] || null
     }
@@ -1230,7 +1454,7 @@ window.Folio = window.Folio || {}
       const parts = U.splitAtCaret(el)
       const before = cleanHTML(parts[0])
       const after = cleanHTML(parts[1])
-      const nextType = LIST_TYPES[b.type] ? b.type : 'text'
+      const nextType = LIST_TYPES[b.type] && !b.heading ? b.type : 'text'
       const beforeEmpty = !S.stripTags(before).replace(/​/g, '').length && !/data-(page-id|date)/.test(before)
       const afterEmpty = !S.stripTags(after).replace(/​/g, '').length && !/data-(page-id|date)/.test(after)
       if (beforeEmpty && !afterEmpty) {
@@ -1383,6 +1607,7 @@ window.Folio = window.Folio || {}
         b.text = U.escapeHTML(b.text).replace(/\n/g, '<br>')
       }
       b.type = type
+      if (type !== 'toggle') delete b.heading
       if (type === 'todo') b.checked = !!b.checked
       if (type === 'callout' && !b.icon) b.icon = '💡'
       if (type === 'toggle' && b.children.length) b.open = true
@@ -1595,9 +1820,14 @@ window.Folio = window.Folio || {}
         if (id && S.page(id)) F.app.open(id)
         return
       }
-      const link = t.closest('.block-text a[href]')
+      const link = t.closest('.block-text a[href], .st-cell a[href]')
       if (link) {
         e.preventDefault()
+        const inApp = /^#\/p\/([\w-]+)/.exec(link.getAttribute('href') || '')
+        if (inApp && S.page(inApp[1]) && window.getSelection().isCollapsed && !U.mod(e)) {
+          F.app.open(inApp[1])
+          return
+        }
         if (U.mod(e) || this.locked) window.open(link.href, '_blank', 'noopener')
         else if (window.getSelection().isCollapsed) this.linkPopover(link)
         return
@@ -1688,6 +1918,12 @@ window.Folio = window.Folio || {}
         document.execCommand('insertText', false, text)
         return
       }
+      const cell = t.closest && t.closest('.st-cell')
+      if (cell) {
+        e.preventDefault()
+        this.pasteIntoCell(cell, e.clipboardData.getData('text/plain') || '')
+        return
+      }
       const el = t.closest && t.closest('.block-text')
       if (!el) return
       const b = this.blockOfEl(el)
@@ -1722,6 +1958,33 @@ window.Folio = window.Folio || {}
       const blocks = F.md.toBlocks(text)
       if (!blocks.length) return
       this.insertBlocks(b, el, blocks, false)
+    }
+
+    pasteIntoCell(cell, text) {
+      const b = this.blockOfEl(cell)
+      text = text.replace(/\r\n?/g, '\n').replace(/\n$/, '')
+      if (text.indexOf('\t') === -1 && text.indexOf('\n') === -1) {
+        document.execCommand('insertText', false, text)
+        this.syncText(cell)
+        return
+      }
+      // Spreadsheet-style paste: fill the grid from this cell, growing it as needed.
+      this.checkpoint()
+      const r0 = +cell.dataset.r
+      const c0 = +cell.dataset.c
+      const grid = text.split('\n').map(line => line.split('\t'))
+      grid.forEach((line, i) => {
+        line.forEach((val, j) => {
+          const r = r0 + i
+          const c = c0 + j
+          while (b.rows.length <= r) b.rows.push(new Array(b.rows[0].length).fill(''))
+          while (b.rows[0].length <= c) b.rows.forEach(row => row.push(''))
+          b.rows[r][c] = U.escapeHTML(val)
+        })
+      })
+      this.changed()
+      this.renderBlocks()
+      this.focusCell(b.id, r0, c0, true)
     }
 
     insertBlocks(b, el, blocks, keepFirst) {
@@ -2115,6 +2378,8 @@ window.Folio = window.Folio || {}
             }
           : null,
         b.type === 'page' || b.type === 'pagelink' ? { label: 'Open page', icon: 'open', onClick: () => F.app.open(b.pageId) } : null,
+        b.type === 'table' && !multi ? { label: 'Header row', icon: 'table', checked: !!b.header, onClick: () => this.tableOp(b, 'header', 0, 0) } : null,
+        b.type === 'table' && !multi ? { label: 'Header column', icon: 'table', checked: !!b.colHeader, onClick: () => this.tableOp(b, 'colHeader', 0, 0) } : null,
         {
           label: 'Copy link to block',
           icon: 'link',
@@ -2186,13 +2451,26 @@ window.Folio = window.Folio || {}
       const prev = el.textContent.charAt(off - 2)
       if (off === 1 || /\s/.test(prev)) {
         this.closeMenus()
-        const menu = new CommandMenu(this, el, b, off - 1, q => mentionItems(this, q), { width: 300, mention: true })
+        const menu = new CommandMenu(this, el, b, off - 1, q => mentionItems(this, q), { width: 300, compact: true, trigger: '@' })
         this.mention = menu
         menu.onClose = () => {
           if (this.mention === menu) this.mention = null
         }
       }
     }
+    maybeOpenEmoji(el, b) {
+      const off = U.getCaretOffset(el)
+      const prev = el.textContent.charAt(off - 2)
+      if (off === 1 || /\s/.test(prev)) {
+        this.closeMenus()
+        const menu = new CommandMenu(this, el, b, off - 1, q => emojiItems(this, q), { width: 280, compact: true, trigger: ':' })
+        this.emojiMenu = menu
+        menu.onClose = () => {
+          if (this.emojiMenu === menu) this.emojiMenu = null
+        }
+      }
+    }
+
     updateMention() {
       if (this.mention) this.mention.update()
     }
@@ -2203,6 +2481,8 @@ window.Folio = window.Folio || {}
     closeMenus() {
       this.closeSlash()
       this.closeMention()
+      if (this.emojiMenu) this.emojiMenu.close()
+      this.emojiMenu = null
     }
 
     // Insert an inline node at the caret inside el.
@@ -2229,16 +2509,18 @@ window.Folio = window.Folio || {}
       const type = cmd.type
       if (cmd.run) return cmd.run(b, el)
       if (TEXT_TYPES[type] || type === 'code') {
+        const extra = type === 'code' ? { language: 'plain' } : type === 'callout' ? { icon: '💡' } : type === 'toggle' ? { open: true } : {}
+        if (cmd.heading) extra.heading = cmd.heading
         if (b.type === 'text' && !hasText(b)) {
           this.turnInto(b.id, type, 0)
           if (type === 'toggle') {
-            b.open = true
+            Object.assign(b, extra)
+            this.changed()
             this.renderBlocks()
             this.focus(b.id, 'start')
           }
         } else {
-          const nb = S.newBlock(type, type === 'code' ? { language: 'plain' } : type === 'callout' ? { icon: '💡' } : type === 'toggle' ? { open: true } : null)
-          this.insertAfter(b, nb)
+          this.insertAfter(b, S.newBlock(type, extra))
         }
         return
       }
@@ -2267,6 +2549,11 @@ window.Folio = window.Folio || {}
         this.renderBlocks()
         const el2 = this.blockEl(nb.id)
         if (el2) this.imagePicker(nb, el2.querySelector('.image-empty'))
+      } else if (type === 'table') {
+        const nb = this.place(b, S.newBlock('table', { rows: [['', '', ''], ['', '', ''], ['', '', '']], header: true }))
+        this.changed()
+        this.renderBlocks()
+        this.focusCell(nb.id, 0, 0)
       } else if (type === 'toc') {
         this.place(b, S.newBlock('toc'))
         this.changed()
@@ -2315,7 +2602,7 @@ window.Folio = window.Folio || {}
       this.root = h('div.cmd-menu', { onMousedown: e => e.preventDefault() }, this.list)
       const rect = U.caretRect()
       this.pop = UI.popover(rect && rect.height ? rect : el, this.root, {
-        className: 'cmd-pop' + (this.opts.mention ? ' compact' : ''),
+        className: 'cmd-pop' + (this.opts.compact ? ' compact' : ''),
         width: this.opts.width || 320,
         autofocus: false,
         placement: 'bottom-start',
@@ -2330,13 +2617,13 @@ window.Folio = window.Folio || {}
       const off = U.getCaretOffset(this.el)
       if (off <= this.start) return null
       const txt = this.el.textContent
-      if (txt.charAt(this.start) !== (this.opts.mention ? '@' : '/')) return null
+      if (txt.charAt(this.start) !== (this.opts.trigger || '/')) return null
       return txt.slice(this.start + 1, off)
     }
     update() {
       if (this.closed) return
       const q = this.query()
-      if (q == null || /^\s/.test(q) || q.length > 40) return this.close()
+      if (q == null || /^\s/.test(q) || q.length > 40 || (this.opts.trigger === ':' && /\s/.test(q))) return this.close()
       const items = typeof this.source === 'function' ? this.source(q) : filterCommands(this.source, q)
       const count = items.filter(i => !i.header).length
       if (!count) {
@@ -2495,6 +2782,16 @@ window.Folio = window.Folio || {}
     add('bullet', { keywords: 'unordered ul list' })
     add('numbered', { keywords: 'ordered ol list' })
     add('toggle', { keywords: 'collapse expand details' })
+    ;[1, 2, 3].forEach(n => {
+      cmds.push({
+        label: 'Toggle heading ' + n,
+        desc: 'A heading that hides content',
+        keywords: 'toggle heading collapse h' + n,
+        iconEl: () => h('span.glyph', { text: '▸H' + n }),
+        action: (b, el) => ed.runCommand({ type: 'toggle', heading: n }, b, el),
+      })
+    })
+    add('table', { keywords: 'grid simple rows columns spreadsheet' })
     add('quote', { keywords: 'blockquote citation' })
     add('divider', { keywords: 'hr line separator rule' })
     add('callout', { keywords: 'note tip info warning' })
@@ -2676,6 +2973,23 @@ window.Folio = window.Folio || {}
     return items
   }
 
+  function emojiItems(ed, q) {
+    const popular = ['👍', '❤️', '😂', '🎉', '🔥', '✅', '👀', '🙏', '🚀', '💡']
+    const list = q ? F.emoji.search(q).slice(0, 8) : popular.map(e => F.emoji.all.find(x => x.e === e) || { e, n: '' })
+    const items = [{ header: q ? 'Emoji matching “' + q + '”' : 'Popular emoji' }]
+    list.forEach(it => {
+      items.push({
+        label: it.n.split(' ').slice(0, 3).join(' ') || it.e,
+        iconEl: () => h('span.menu-emoji', { text: it.e }),
+        action: (b, el) => {
+          document.execCommand('insertText', false, it.e)
+          ed.syncText(el)
+        },
+      })
+    })
+    return items
+  }
+
   // ------------------------------------------------------------------ inline code
   function toggleInlineCode(textEl) {
     const sel = window.getSelection()
@@ -2767,7 +3081,7 @@ window.Folio = window.Folio || {}
       const r = sel.getRangeAt(0)
       const node = r.commonAncestorContainer
       const elNode = node.nodeType === 1 ? node : node.parentElement
-      const textEl = elNode && elNode.closest('.block-text')
+      const textEl = elNode && elNode.closest('.block-text, .st-cell')
       if (!textEl || textEl.classList.contains('code-text') || !textEl.isContentEditable) return this.hide()
       const edRoot = textEl.closest('.editor')
       if (!edRoot || !edRoot._editor) return this.hide()
@@ -2777,7 +3091,7 @@ window.Folio = window.Folio || {}
       if (!this.el) this.build()
       const b = this.editor.blockOfEl(textEl)
       this.typeBtn.querySelector('.tb-type-label').textContent = (b && INFO[b.type] && INFO[b.type].label) || 'Text'
-      this.typeBtn.style.display = textEl.classList.contains('image-caption') ? 'none' : ''
+      this.typeBtn.style.display = textEl.classList.contains('image-caption') || textEl.classList.contains('st-cell') ? 'none' : ''
       const st = c => {
         try {
           return document.queryCommandState(c)

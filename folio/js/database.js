@@ -168,6 +168,96 @@ window.Folio = window.Folio || {}
     return rows
   }
 
+  // ---------------------------------------------------------------- calculations
+  const CALCS = {
+    none: ['None', ''],
+    count_all: ['Count all', 'Count'],
+    count_values: ['Count values', 'Values'],
+    count_empty: ['Count empty', 'Empty'],
+    count_unique: ['Count unique values', 'Unique'],
+    percent_empty: ['Percent empty', 'Empty'],
+    percent_not_empty: ['Percent not empty', 'Not empty'],
+    sum: ['Sum', 'Sum'],
+    average: ['Average', 'Average'],
+    median: ['Median', 'Median'],
+    min: ['Min', 'Min'],
+    max: ['Max', 'Max'],
+    range: ['Range', 'Range'],
+    checked: ['Checked', 'Checked'],
+    unchecked: ['Unchecked', 'Unchecked'],
+    percent_checked: ['Percent checked', 'Checked'],
+    earliest: ['Earliest date', 'Earliest'],
+    latest: ['Latest date', 'Latest'],
+    date_range: ['Date range', 'Range'],
+  }
+
+  function calcsFor(type) {
+    const base = ['none', 'count_all', 'count_values', 'count_empty', 'count_unique', 'percent_empty', 'percent_not_empty']
+    if (type === 'number') return base.concat(['sum', 'average', 'median', 'min', 'max', 'range'])
+    if (type === 'checkbox') return ['none', 'count_all', 'checked', 'unchecked', 'percent_checked']
+    if (type === 'date' || type === 'created_time' || type === 'last_edited_time') return base.concat(['earliest', 'latest', 'date_range'])
+    return base
+  }
+
+  function calcValue(rows, prop, calc) {
+    const vals = rows.map(r => getValue(r, prop))
+    const n = rows.length
+    const filled = vals.filter(v => !isEmpty(v))
+    const pct = x => (n ? Math.round((x / n) * 1000) / 10 : 0) + '%'
+    const nums = filled.map(Number).filter(x => !isNaN(x)).sort((a, b) => a - b)
+    const fmt = x => (Math.round(x * 100) / 100).toLocaleString()
+    const dateOf = v => (typeof v === 'number' ? v : U.parseISODate(v) ? U.parseISODate(v).getTime() : NaN)
+    const dates = filled.map(dateOf).filter(x => !isNaN(x)).sort((a, b) => a - b)
+    switch (calc) {
+      case 'count_all':
+        return String(n)
+      case 'count_values':
+        return String(prop.type === 'multi_select' ? filled.reduce((a, v) => a + v.length, 0) : filled.length)
+      case 'count_empty':
+        return String(n - filled.length)
+      case 'count_unique': {
+        const flat = prop.type === 'multi_select' ? filled.reduce((a, v) => a.concat(v), []) : filled.map(v => (typeof v === 'string' ? v.toLowerCase() : v))
+        return String(new Set(flat).size)
+      }
+      case 'percent_empty':
+        return pct(n - filled.length)
+      case 'percent_not_empty':
+        return pct(filled.length)
+      case 'sum':
+        return fmt(nums.reduce((a, x) => a + x, 0))
+      case 'average':
+        return nums.length ? fmt(nums.reduce((a, x) => a + x, 0) / nums.length) : '—'
+      case 'median': {
+        if (!nums.length) return '—'
+        const m = Math.floor(nums.length / 2)
+        return fmt(nums.length % 2 ? nums[m] : (nums[m - 1] + nums[m]) / 2)
+      }
+      case 'min':
+        return nums.length ? fmt(nums[0]) : '—'
+      case 'max':
+        return nums.length ? fmt(nums[nums.length - 1]) : '—'
+      case 'range':
+        return nums.length ? fmt(nums[nums.length - 1] - nums[0]) : '—'
+      case 'checked':
+        return String(vals.filter(Boolean).length)
+      case 'unchecked':
+        return String(vals.filter(v => !v).length)
+      case 'percent_checked':
+        return pct(vals.filter(Boolean).length)
+      case 'earliest':
+        return dates.length ? U.formatDate(dates[0]) : '—'
+      case 'latest':
+        return dates.length ? U.formatDate(dates[dates.length - 1]) : '—'
+      case 'date_range': {
+        if (!dates.length) return '—'
+        const days = Math.round((dates[dates.length - 1] - dates[0]) / 86400000)
+        return days + (days === 1 ? ' day' : ' days')
+      }
+      default:
+        return ''
+    }
+  }
+
   // ---------------------------------------------------------------- display
   function pill(opt, status) {
     if (!opt) return null
@@ -1017,7 +1107,33 @@ window.Folio = window.Folio || {}
           }, U.icon('plus', 14), 'New')
         )
       }
-      table.appendChild(h('div.tbl-foot', null, h('span.muted', { text: 'Count ' }), h('span', { text: String(rows.length) })))
+      const foot = h('div.tbl-row.tbl-calc')
+      foot.appendChild(h('div.tbl-gutter'))
+      props.forEach(p => {
+        const calcs = view.calcs || {}
+        let calc = calcs[p.id] || (p.type === 'title' ? 'count_all' : 'none')
+        if (calcsFor(p.type).indexOf(calc) === -1) calc = 'none'
+        const set = calc !== 'none'
+        const cell = h('div.tc', { style: { width: width(p) + 'px' }, class: set ? 'set' : null },
+          set ? h('span.tc-label', { text: CALCS[calc][1] }) : h('span.tc-label.tc-hint', null, 'Calculate', U.icon('chevronDown', 10)),
+          set ? h('span.tc-val', { text: calcValue(rows, p, calc) }) : null
+        )
+        if (!locked) {
+          cell.addEventListener('click', () =>
+            UI.menu(cell, calcsFor(p.type).map(k => ({
+              label: CALCS[k][0],
+              checked: k === calc,
+              onClick: () => {
+                view.calcs = Object.assign({}, view.calcs, { [p.id]: k })
+                this.commit()
+              },
+            })), { width: 220, placement: 'top-start' })
+          )
+        }
+        foot.appendChild(cell)
+      })
+      foot.appendChild(h('div.td-fill'))
+      table.appendChild(foot)
       this.bodyEl.appendChild(h('div.tbl-scroll', null, table))
     }
 

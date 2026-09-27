@@ -85,10 +85,23 @@ window.Folio = window.Folio || {}
         case 'h3':
           line = '### ' + t
           break
-        case 'bullet':
         case 'toggle':
+          line = b.heading ? '#'.repeat(b.heading) + ' ' + t : '- ' + t
+          break
+        case 'bullet':
           line = '- ' + t
           break
+        case 'table': {
+          const rows = b.rows || []
+          const cell = x => MD.htmlToInline(x).replace(/\|/g, '\\|').replace(/\s*\n\s*/g, ' ')
+          const out = []
+          rows.forEach((r, i) => {
+            out.push('| ' + r.map(cell).join(' | ') + ' |')
+            if (i === 0) out.push('| ' + r.map(() => '---').join(' | ') + ' |')
+          })
+          line = out.join('\n')
+          break
+        }
         case 'numbered':
           line = num + '. ' + t
           break
@@ -127,7 +140,7 @@ window.Folio = window.Folio || {}
       if (line == null) return
       lines.push(line.split('\n').map(l => (l ? pad + l : l)).join('\n'))
       if (b.children && b.children.length) lines.push(MD.fromBlocks(b.children, depth + 1))
-      if (depth === 0 && ['text', 'h1', 'h2', 'h3', 'code', 'divider', 'quote', 'callout', 'image', 'database'].indexOf(b.type) !== -1)
+      if (depth === 0 && ['text', 'h1', 'h2', 'h3', 'code', 'divider', 'quote', 'callout', 'image', 'database', 'table'].indexOf(b.type) !== -1)
         lines.push('')
     })
     return lines.join('\n')
@@ -202,7 +215,23 @@ window.Folio = window.Folio || {}
       let block
       let m
       const fence = /^```\s*([\w+#-]*)/.exec(line)
-      if (fence) {
+      if (/^\|.*\|$/.test(line)) {
+        const raw = [line]
+        while (i + 1 < lines.length && /^\s*\|.*\|\s*$/.test(lines[i + 1])) raw.push(lines[++i].trim())
+        const split = l =>
+          l
+            .slice(1, -1)
+            .split(/(?<!\\)\|/)
+            .map(c => MD.inlineToHtml(c.trim().replace(/\\\|/g, '|')))
+        const isSep = l => /^\|[\s:|-]+\|$/.test(l)
+        const header = raw.length > 1 && isSep(raw[1])
+        const rows = raw.filter(l => !isSep(l)).map(split)
+        const cols = Math.max.apply(null, rows.map(r => r.length))
+        rows.forEach(r => {
+          while (r.length < cols) r.push('')
+        })
+        block = S.newBlock('table', { rows, header })
+      } else if (fence) {
         const code = []
         i++
         while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++])

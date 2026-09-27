@@ -65,24 +65,17 @@
   window.addEventListener('scroll', onScroll, { passive: true })
   onScroll()
 
-  // Reveal sections as they arrive, with a small stagger between siblings.
-  const reveals = $$('.reveal')
-  reveals.forEach(r => {
-    const sibs = Array.prototype.filter.call(r.parentElement.children, c => c.classList.contains('reveal'))
-    const i = sibs.indexOf(r)
-    if (i > 0) r.style.transitionDelay = Math.min(i % 4, 3) * 70 + 'ms'
-  })
-  if (io && !reduce) {
-    const rio = new IntersectionObserver(
-      entries => entries.forEach(e => {
-        if (!e.isIntersecting) return
-        e.target.classList.add('in')
-        rio.unobserve(e.target)
-      }),
-      { rootMargin: '0px 0px -6% 0px', threshold: 0.06 }
-    )
-    reveals.forEach(r => rio.observe(r))
-  } else reveals.forEach(r => r.classList.add('in'))
+  // The viewer's theme wins over the OS setting when it names one, for the screenshot too.
+  const shotImg = $('.shot img')
+  const shotSource = $('.shot source')
+  function syncShot() {
+    const forced = root.getAttribute('data-theme')
+    if (!shotImg || !shotSource) return
+    shotSource.media = forced ? 'not all' : '(prefers-color-scheme: dark)'
+    if (forced) shotImg.src = forced === 'dark' ? 'img/shot-dashboard-dark.jpg' : 'img/shot-dashboard.jpg'
+  }
+  syncShot()
+  if ('MutationObserver' in window) new MutationObserver(syncShot).observe(root, { attributes: true, attributeFilter: ['data-theme'] })
 
   // ------------------------------------------------------------------ quick add
   // Each phrase mirrors what the real parser in the app understands.

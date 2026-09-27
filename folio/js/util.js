@@ -143,6 +143,40 @@ window.Folio = window.Folio || {}
   }
 
   U.download = function(filename, text, type) {
+    // Embedded frames often block downloads, so offer the text to copy instead.
+    if (window.self !== window.top && F.ui) return U.showExport(filename, text, type)
+    U.saveFile(filename, text, type)
+  }
+
+  U.showExport = function(filename, text, type) {
+    const area = U.h('textarea.export-text', { readonly: true })
+    area.value = text
+    const status = U.h('span.muted.small', { text: 'Downloads may be blocked here. Copy the text instead.' })
+    const m = F.ui.modal(
+      U.h('div.export-box', null,
+        U.h('div.confirm-title', { text: filename }),
+        area,
+        U.h('div.confirm-actions', null,
+          status,
+          U.h('div.spacer'),
+          U.h('button.btn', { onClick: () => U.saveFile(filename, text, type) }, 'Try download'),
+          U.h('button.btn.btn-primary', {
+            onClick: () => {
+              U.copyText(text).then(() => {
+                status.textContent = 'Copied to clipboard'
+              })
+              area.select()
+            },
+          }, 'Copy')
+        )
+      ),
+      { width: 640 }
+    )
+    setTimeout(() => area.select(), 30)
+    return m
+  }
+
+  U.saveFile = function(filename, text, type) {
     const blob = new Blob([text], { type: type || 'text/plain' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)

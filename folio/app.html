@@ -10,9 +10,14 @@
     <script>
       // Apply the saved theme before first paint to avoid a flash.
       try {
+        var root = document.documentElement
         var s = JSON.parse(localStorage.getItem('folio.workspace.v1') || '{}').settings || {}
         var dark = s.theme === 'dark' || ((!s.theme || s.theme === 'system') && matchMedia('(prefers-color-scheme: dark)').matches)
-        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+        // In "system" mode, keep a theme the embedding page already chose.
+        if (!root.hasAttribute('data-theme') || (s.theme && s.theme !== 'system')) {
+          window.__folioTheme = dark ? 'dark' : 'light'
+          root.setAttribute('data-theme', window.__folioTheme)
+        }
       } catch (e) {}
     </script>
   </head>

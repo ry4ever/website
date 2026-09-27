@@ -71,10 +71,16 @@ window.Folio = window.Folio || {}
     }
   }
 
+  let appliedTheme = window.__folioTheme || null
   function applyTheme() {
+    const root = document.documentElement
     const t = S.state().settings.theme
+    const current = root.getAttribute('data-theme')
+    // In "system" mode a theme set by an embedding page wins.
+    if (t === 'system' && current && current !== appliedTheme) return
     const dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
-    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+    appliedTheme = dark ? 'dark' : 'light'
+    root.setAttribute('data-theme', appliedTheme)
   }
 
   // ------------------------------------------------------------------ routing
@@ -575,7 +581,7 @@ window.Folio = window.Folio || {}
       { label: 'Keyboard shortcuts', icon: 'keyboard', hint: '?', onClick: () => app.shortcuts() },
       { divider: true },
       { label: 'Export workspace', icon: 'download', onClick: exportWorkspace },
-      { label: 'About Folio', icon: 'help', onClick: () => window.open('index.html', '_blank') },
+      { label: 'About Folio', icon: 'help', onClick: () => (location.href = window.FOLIO_LANDING || 'index.html') },
     ], { width: 260 })
   }
 
@@ -694,7 +700,7 @@ window.Folio = window.Folio || {}
       h('div.share-actions', null,
         h('button.btn.btn-sm', { onClick: () => U.download(fileName(p) + '.md', F.md.fromPage(p), 'text/markdown') }, U.icon('download', 14), 'Markdown'),
         h('button.btn.btn-sm', { onClick: () => U.download(fileName(p) + '.html', pageHTML(p), 'text/html') }, U.icon('download', 14), 'HTML'),
-        h('button.btn.btn-sm', { onClick: () => window.print() }, U.icon('page', 14), 'Print / PDF')
+        window.self === window.top ? h('button.btn.btn-sm', { onClick: () => window.print() }, U.icon('page', 14), 'Print / PDF') : null
       )
     ), { placement: 'bottom-end', width: 400, autofocus: false })
   }
